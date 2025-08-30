@@ -1,11 +1,12 @@
 
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Post, FriendshipStatus, ScrollState, AppView, Comment } from '../types';
 import { PostCard } from './PostCard';
 import Icon from './Icon';
-import { geminiService } from './geminiService';
-import { firebaseService } from './firebaseService';
+import { geminiService } from '../services/geminiService';
+import { firebaseService } from '../services/firebaseService';
 import { getTtsPrompt } from '../constants';
 import ImageCropper from './ImageCropper';
 import { useSettings } from '../contexts/SettingsContext';
