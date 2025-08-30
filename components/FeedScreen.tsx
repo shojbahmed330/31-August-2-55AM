@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Post, User, ScrollState, Campaign, AppView, Story } from '../types';
+import { Post, User, ScrollState, Campaign, AppView, Story, Comment } from '../types';
 import { PostCard } from './PostCard';
 import CreatePostWidget from './CreatePostWidget';
 import SkeletonPostCard from './SkeletonPostCard';
@@ -24,7 +25,7 @@ interface FeedScreenProps {
   onRewardedAdClick: (campaign: Campaign) => void;
   onAdViewed: (campaignId: string) => void;
   onAdClick: (post: Post) => void;
-  onStartComment: (postId: string) => void;
+  onStartComment: (postId: string, commentToReplyTo?: Comment) => void;
   onSharePost: (post: Post) => void;
   onOpenPhotoViewer: (post: Post) => void;
   

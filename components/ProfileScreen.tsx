@@ -1,10 +1,11 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { User, Post, FriendshipStatus, ScrollState, AppView } from '../types';
+import { User, Post, FriendshipStatus, ScrollState, AppView, Comment } from '../types';
 import { PostCard } from './PostCard';
 import Icon from './Icon';
-import { geminiService } from '../services/geminiService';
-import { firebaseService } from '../services/firebaseService';
+import { geminiService } from './geminiService';
+import { firebaseService } from './firebaseService';
 import { getTtsPrompt } from '../constants';
 import ImageCropper from './ImageCropper';
 import { useSettings } from '../contexts/SettingsContext';
@@ -31,7 +32,7 @@ interface ProfileScreenProps {
   onSetScrollState: (state: ScrollState) => void;
   onNavigate: (view: AppView, props?: any) => void;
   onGoBack: () => void;
-  onStartComment: (postId: string) => void;
+  onStartComment: (postId: string, commentToReplyTo?: Comment) => void;
 }
 
 const AboutItem: React.FC<{iconName: React.ComponentProps<typeof Icon>['name'], children: React.ReactNode}> = ({iconName, children}) => (

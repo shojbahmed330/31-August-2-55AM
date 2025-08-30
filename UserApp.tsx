@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story } from './types';
 import AuthScreen from './components/AuthScreen';
@@ -632,14 +633,16 @@ const UserApp: React.FC = () => {
   const handleOpenProfile = (username: string) => navigate(AppView.PROFILE, { username });
   const handleViewPost = (postId: string) => navigate(AppView.POST_DETAILS, { postId });
   const handleEditProfile = () => navigate(AppView.SETTINGS, { ttsMessage: getTtsPrompt('settings_opened', language) });
-  const handleStartComment = (postId: string) => {
-    if(user?.commentingSuspendedUntil && new Date(user.commentingSuspendedUntil) > new Date()) {
+  
+  const handleStartComment = (postId: string, commentToReplyTo?: Comment) => {
+    if (user?.commentingSuspendedUntil && new Date(user.commentingSuspendedUntil) > new Date()) {
         setTtsMessage(getTtsPrompt('comment_suspended', language));
         return;
     }
     setViewerPost(null); // Close photo viewer if open before navigating
-    navigate(AppView.CREATE_COMMENT, { postId });
-  }
+    navigate(AppView.CREATE_COMMENT, { postId, commentToReplyTo });
+  };
+
   const handleOpenConversation = async (peer: User) => {
     if (!user) return;
     navigate(AppView.MESSAGES, { recipient: peer, ttsMessage: getTtsPrompt('message_screen_loaded', language, { name: peer.name }) });
@@ -746,7 +749,7 @@ const UserApp: React.FC = () => {
       case AppView.PROFILE:
         return <ProfileScreen {...commonScreenProps} username={currentView.props.username} onStartMessage={handleStartMessage} onEditProfile={handleEditProfile} onViewPost={handleViewPost} onReactToPost={handleReactToPost} onCurrentUserUpdate={handleCurrentUserUpdate} onPostCreated={handlePostCreated} onBlockUser={handleBlockUser} />;
       case AppView.POST_DETAILS:
-        return <PostDetailScreen {...commonScreenProps} postId={currentView.props.postId} newlyAddedCommentId={currentView.props.newlyAddedCommentId} onStartComment={handleStartComment} onReactToPost={handleReactToPost} />;
+        return <PostDetailScreen {...commonScreenProps} postId={currentView.props.postId} newlyAddedCommentId={currentView.props.newlyAddedCommentId} onReactToPost={handleReactToPost} />;
       case AppView.FRIENDS:
         return <FriendsScreen {...commonScreenProps} />;
       case AppView.SEARCH_RESULTS:
@@ -758,7 +761,7 @@ const UserApp: React.FC = () => {
       case AppView.CREATE_REEL:
         return <CreateReelScreen {...commonScreenProps} onReelCreated={handleReelCreated} />;
       case AppView.CREATE_COMMENT:
-        return <CreateCommentScreen {...commonScreenProps} user={user!} postId={currentView.props.postId} onCommentPosted={handleCommentPosted} />;
+        return <CreateCommentScreen {...commonScreenProps} user={user!} postId={currentView.props.postId} onCommentPosted={handleCommentPosted} commentToReplyTo={currentView.props.commentToReplyTo} />;
       case AppView.CONVERSATIONS:
         return <ConversationsScreen {...commonScreenProps} onOpenConversation={handleOpenConversation} />;
       case AppView.MESSAGES:

@@ -1,4 +1,5 @@
 
+
 import React, { useRef, useEffect } from 'react';
 import type { Comment } from '../types';
 import Icon from './Icon';
@@ -10,9 +11,10 @@ interface CommentCardProps {
   isPlaying: boolean;
   onPlayPause: () => void;
   onAuthorClick: (username: string) => void;
+  onReply: (comment: Comment) => void;
 }
 
-const CommentCard: React.FC<CommentCardProps> = ({ comment, isPlaying, onPlayPause, onAuthorClick }) => {
+const CommentCard: React.FC<CommentCardProps> = ({ comment, isPlaying, onPlayPause, onAuthorClick, onReply }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const timeAgo = new Date(comment.createdAt).toLocaleDateString('en-US', {
     month: 'short',
@@ -82,9 +84,13 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, isPlaying, onPlayPau
         <div className="flex-grow">
             <div className="flex items-baseline gap-2">
                 <button onClick={() => onAuthorClick(comment.author.username)} className="font-bold text-slate-200 hover:text-sky-300 transition-colors">{comment.author.name}</button>
-                <span className="text-xs text-slate-400">{timeAgo}</span>
             </div>
             {renderContent()}
+            <div className="mt-2 flex items-center gap-4 text-xs text-slate-400">
+                <button onClick={() => onReply(comment)} className="font-semibold hover:underline">Reply</button>
+                <span className="text-slate-500">•</span>
+                <span className="text-slate-500">{timeAgo}</span>
+            </div>
         </div>
     </div>
   );

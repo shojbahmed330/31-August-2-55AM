@@ -1,4 +1,5 @@
 
+
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import type { Post, User, Comment, GroupRole } from '../types';
 import Icon from './Icon';
@@ -17,7 +18,7 @@ interface PostCardProps {
   onReact: (postId: string, emoji: string) => void;
   onViewPost: (postId: string) => void;
   onAuthorClick: (username: string) => void;
-  onStartComment: (postId: string) => void;
+  onStartComment: (postId: string, commentToReplyTo?: Comment) => void;
   onSharePost?: (post: Post) => void;
   onAdClick?: (post: Post) => void;
   onDeletePost?: (postId: string) => void;
@@ -439,7 +440,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
         )}
 
 
-        <div className="flex items-center text-lime-400 gap-2 sm:gap-4 pt-2 mt-2 border-t border-lime-500/20">
+        <div className="flex items-center text-lime-400 gap-2 pt-2 mt-2 border-t border-lime-500/20">
           {post.isSponsored ? (
               <button onClick={handleAdClick} className="flex-grow flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-lime-600 text-black hover:bg-lime-500 transition-colors duration-200">
                 <span className="font-semibold text-base">{getAdButtonText()}</span>
@@ -468,16 +469,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
                               ))}
                           </div>
                       )}
-                      <button onClick={handleDefaultReact} className={`w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200 ${myReaction ? REACTION_COLORS[myReaction] : 'text-lime-400'}`}>
+                      <button onClick={handleDefaultReact} className={`w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200 ${myReaction ? REACTION_COLORS[myReaction] : 'text-lime-400'}`}>
                           <span className="text-xl transition-transform duration-200 ease-in-out" style={{transform: myReaction ? 'scale(1.1)' : 'scale(1)'}}>{myReaction || '👍'}</span>
-                          <span className="font-semibold text-base">{myReaction ? 'Reacted' : 'React'}</span>
+                          <span className="font-semibold text-base">React</span>
                       </button>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); onStartComment(post.id); }} className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200">
+                  <button onClick={(e) => { e.stopPropagation(); onStartComment(post.id); }} className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200">
                     <Icon name="comment" className="w-6 h-6" />
                     <span className="font-semibold text-base">Comment</span>
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); onSharePost?.(post); }} className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200">
+                  <button onClick={(e) => { e.stopPropagation(); onSharePost?.(post); }} className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200">
                     <Icon name="share" className="w-6 h-6" />
                     <span className="font-semibold text-base">Share</span>
                   </button>

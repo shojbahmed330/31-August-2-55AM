@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RecordingState, User, Comment } from '../types';
 import Waveform from './Waveform';
@@ -16,12 +17,13 @@ interface CreateCommentScreenProps {
   lastCommand: string | null;
   onCommandProcessed: () => void;
   onGoBack: () => void;
+  commentToReplyTo?: Comment;
 }
 
 type CommentMode = 'text' | 'image' | 'audio';
 const EMOJIS = ['😂', '❤️', '👍', '😢', '😡', '🔥', '😊', '😮'];
 
-const CreateCommentScreen: React.FC<CreateCommentScreenProps> = ({ user, postId, onCommentPosted, onSetTtsMessage, lastCommand, onCommandProcessed, onGoBack }) => {
+const CreateCommentScreen: React.FC<CreateCommentScreenProps> = ({ user, postId, onCommentPosted, onSetTtsMessage, lastCommand, onCommandProcessed, onGoBack, commentToReplyTo }) => {
   const [mode, setMode] = useState<CommentMode>('text');
   
   // Audio state
@@ -34,6 +36,7 @@ const CreateCommentScreen: React.FC<CreateCommentScreenProps> = ({ user, postId,
 
   // Text state
   const [text, setText] = useState('');
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Image state
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -102,7 +105,15 @@ const CreateCommentScreen: React.FC<CreateCommentScreenProps> = ({ user, postId,
   }, [stopTimer]);
   
   useEffect(() => {
-    onSetTtsMessage("Write your comment, or switch to image or voice.");
+    if (commentToReplyTo) {
+        setText(`@${commentToReplyTo.author.username} `);
+        setMode('text');
+        textInputRef.current?.focus();
+        onSetTtsMessage(`Replying to ${commentToReplyTo.author.name}`);
+    } else {
+        onSetTtsMessage("Write your comment, or switch to image or voice.");
+    }
+    
     return () => {
         stopTimer();
         if (audioUrl) URL.revokeObjectURL(audioUrl);
@@ -110,7 +121,7 @@ const CreateCommentScreen: React.FC<CreateCommentScreenProps> = ({ user, postId,
         mediaRecorderRef.current?.stream?.getTracks().forEach(track => track.stop());
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [commentToReplyTo]);
 
   const handlePost = useCallback(async () => {
     setIsPosting(true);
@@ -200,6 +211,7 @@ const CreateCommentScreen: React.FC<CreateCommentScreenProps> = ({ user, postId,
         return (
           <div className="w-full bg-slate-800 rounded-b-lg p-4 flex flex-col items-center justify-center">
             <textarea
+                ref={textInputRef}
                 value={text}
                 onChange={e => setText(e.target.value)}
                 placeholder="Write your comment..."

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { Post, User, Comment, ScrollState } from '../types';
 import { PostCard } from './PostCard';
@@ -14,7 +15,7 @@ interface PostDetailScreenProps {
   currentUser: User;
   onSetTtsMessage: (message: string) => void;
   lastCommand: string | null;
-  onStartComment: (postId: string) => void;
+  onStartComment: (postId: string, commentToReplyTo?: Comment) => void;
   onReactToPost: (postId: string, emoji: string) => void;
   onOpenProfile: (userName: string) => void;
   onSharePost: (post: Post) => void;
@@ -132,6 +133,12 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
     }
   };
 
+  const handleReplyToComment = (commentToReplyTo: Comment) => {
+    if (post) {
+      onStartComment(post.id, commentToReplyTo);
+    }
+  };
+
   const handleCommand = useCallback(async (command: string) => {
     try {
         const intentResponse = await geminiService.processIntent(command);
@@ -227,6 +234,7 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
                                     isPlaying={playingCommentId === comment.id}
                                     onPlayPause={() => handlePlayComment(comment)}
                                     onAuthorClick={onOpenProfile}
+                                    onReply={handleReplyToComment}
                                 />
                                 {canMarkBest && !isBestAnswer && (
                                     <button onClick={() => handleMarkBestAnswer(comment.id)} className="mt-2 ml-14 text-xs font-semibold text-emerald-400 hover:underline">

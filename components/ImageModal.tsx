@@ -1,10 +1,11 @@
 
+
 import React, { useEffect, useState } from 'react';
 import { Post, User, Comment } from '../types';
 import Icon from './Icon';
 import CommentCard from './CommentCard';
 import TaggedContent from './TaggedContent';
-import { PostCard } from './PostCard'; // For action buttons logic
+import { PostCard } from './PostCard'; 
 
 interface ImageModalProps {
   post: Post | null;
@@ -12,7 +13,7 @@ interface ImageModalProps {
   currentUser: User;
   onClose: () => void;
   onReactToPost: (postId: string, emoji: string) => void;
-  onStartComment: (postId: string) => void;
+  onStartComment: (postId: string, commentToReplyTo?: Comment) => void;
   onOpenProfile: (userName: string) => void;
   onSharePost: (post: Post) => void;
 }
@@ -39,6 +40,12 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
   const handlePlayComment = (comment: Comment) => {
     if (comment.type !== 'audio') return;
     setPlayingCommentId(prev => prev === comment.id ? null : comment.id);
+  };
+
+  const handleReplyToComment = (commentToReplyTo: Comment) => {
+    if (post) {
+      onStartComment(post.id, commentToReplyTo);
+    }
   };
   
   if (isLoading) {
@@ -88,6 +95,21 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
                 <p className="text-slate-200 mt-3"><TaggedContent text={post.caption} onTagClick={onOpenProfile} /></p>
               )}
           </header>
+          
+          <div className="p-2 border-b border-slate-700">
+            <PostCard 
+              post={post}
+              currentUser={currentUser}
+              onReact={onReactToPost}
+              onStartComment={onStartComment}
+              onSharePost={onSharePost}
+              isActive={true}
+              isPlaying={false}
+              onPlayPause={()=>{}}
+              onViewPost={()=>{}}
+              onAuthorClick={()=>{}}
+            />
+          </div>
 
           <div className="flex-grow overflow-y-auto p-4 space-y-3">
             {post.comments.length > 0 ? (
@@ -98,29 +120,13 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
                         isPlaying={playingCommentId === comment.id}
                         onPlayPause={() => handlePlayComment(comment)}
                         onAuthorClick={onOpenProfile}
+                        onReply={handleReplyToComment}
                     />
                 ))
             ) : (
                 <p className="text-center text-slate-500 pt-8">No comments yet.</p>
             )}
           </div>
-          
-          <footer className="p-2 border-t border-slate-700">
-            {/* We can re-use the action buttons from PostCard by passing a minimal version of it */}
-            <PostCard 
-              post={post}
-              currentUser={currentUser}
-              onReact={onReactToPost}
-              onStartComment={onStartComment}
-              onSharePost={onSharePost}
-              // Dummy props to satisfy the interface
-              isActive={true}
-              isPlaying={false}
-              onPlayPause={()=>{}}
-              onViewPost={()=>{}}
-              onAuthorClick={()=>{}}
-            />
-          </footer>
       </aside>
     </div>
   );

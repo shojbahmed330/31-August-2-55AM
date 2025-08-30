@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect } from 'react';
-import { Post, User, CategorizedExploreFeed } from '../types';
+import { Post, User, CategorizedExploreFeed, Comment } from '../types';
 import { geminiService } from '../services/geminiService';
 import { PostCard } from './PostCard';
 import Icon from './Icon';
@@ -11,7 +12,7 @@ interface ExploreScreenProps {
   onReactToPost: (postId: string, emoji: string) => void;
   onViewPost: (postId: string) => void;
   onOpenProfile: (userName: string) => void;
-  onStartComment: (postId: string) => void;
+  onStartComment: (postId: string, commentToReplyTo?: Comment) => void;
   onSharePost: (post: Post) => void;
   onOpenPhotoViewer: (post: Post) => void;
 }
