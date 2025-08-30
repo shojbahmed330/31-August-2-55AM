@@ -1,4 +1,3 @@
-
 // @ts-nocheck
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
@@ -10,7 +9,8 @@ import { db, auth, storage } from './firebaseConfig';
 import { User, Post, Comment, Message, ReplyInfo, Story, Group, Campaign, LiveAudioRoom, LiveVideoRoom, Report, Notification, Lead, Author } from '../types';
 import { DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET, SPONSOR_CPM_BDT } from '../constants';
 
-const { serverTimestamp, increment, arrayUnion, arrayRemove, Timestamp } = firebase.firestore.FieldValue;
+const { serverTimestamp, increment, arrayUnion, arrayRemove } = firebase.firestore.FieldValue;
+const Timestamp = firebase.firestore.Timestamp;
 
 
 // --- Helper Functions ---

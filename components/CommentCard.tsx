@@ -16,12 +16,24 @@ interface CommentCardProps {
   onReact: (commentId: string, emoji: string) => void;
 }
 
-const AVAILABLE_REACTIONS = ['❤️', '😂', '👍', '😢', '🔥', '😮'];
+const AVAILABLE_REACTIONS = ['❤️', '😂', '👍', '😢', '😡', '🔥', '😮'];
 
 const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlaying, onPlayPause, onAuthorClick, onReply, onReact }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPickerOpen, setPickerOpen] = useState(false);
-  const pickerTimeout = useRef<number | null>(null);
+  const pickerContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+        if (pickerContainerRef.current && !pickerContainerRef.current.contains(event.target as Node)) {
+            setPickerOpen(false);
+        }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const timeAgo = useMemo(() => {
       const date = new Date(comment.createdAt);
@@ -75,17 +87,6 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
     onReact(comment.id, emoji);
     setPickerOpen(false);
   };
-
-  const handleMouseEnter = () => {
-    if (pickerTimeout.current) clearTimeout(pickerTimeout.current);
-    setPickerOpen(true);
-  };
-
-  const handleMouseLeave = () => {
-    pickerTimeout.current = window.setTimeout(() => {
-        setPickerOpen(false);
-    }, 300);
-  };
   
   const myReaction = comment.reactions?.[currentUser.id];
   const reactionCount = Object.keys(comment.reactions || {}).length;
@@ -135,15 +136,13 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
                 </div>
             )}
             
-            <div className="mt-2 flex items-center gap-4 text-xs text-slate-400 relative">
+            <div className="mt-2 flex items-center gap-4 text-xs text-slate-400">
                 <div 
-                    onMouseEnter={handleMouseEnter} 
-                    onMouseLeave={handleMouseLeave}
+                    ref={pickerContainerRef}
                     className="relative"
                 >
                     {isPickerOpen && (
                         <div 
-                            onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}
                             className="absolute bottom-full mb-2 bg-slate-900/90 backdrop-blur-sm border border-lime-500/20 rounded-full p-1.5 flex items-center gap-1 shadow-lg animate-fade-in-fast"
                         >
                             {AVAILABLE_REACTIONS.map(emoji => (
@@ -153,7 +152,7 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
                             ))}
                         </div>
                     )}
-                    <button onClick={(e) => handleReact(e, myReaction || '👍')} className={`font-semibold hover:underline ${myReaction ? 'text-lime-400' : ''}`}>
+                    <button onClick={() => setPickerOpen(p => !p)} className={`font-semibold hover:underline ${myReaction ? 'text-lime-400' : ''}`}>
                       {myReaction ? myReaction : 'React'}
                     </button>
                 </div>
