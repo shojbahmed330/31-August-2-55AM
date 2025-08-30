@@ -1,10 +1,12 @@
 
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { Post, User, Comment, ScrollState } from '../types';
 import { PostCard } from './PostCard';
 import CommentCard from './CommentCard';
 import { geminiService } from '../services/geminiService';
+// @FIXML-FIX-46: Import firebaseService
+import { firebaseService } from '../services/firebaseService';
 import Icon from './Icon';
 import { getTtsPrompt } from '../constants';
 import { useSettings } from '../contexts/SettingsContext';
@@ -15,115 +17,106 @@ interface PostDetailScreenProps {
   currentUser: User;
   onSetTtsMessage: (message: string) => void;
   lastCommand: string | null;
-  onStartComment: (postId: string, commentToReplyTo?: Comment) => void;
   onReactToPost: (postId: string, emoji: string) => void;
   onReactToComment: (postId: string, commentId: string, emoji: string) => void;
+  onPostComment: (postId: string, text: string, parentId?: string | null) => Promise<void>;
+  onEditComment: (postId: string, commentId: string, newText: string) => Promise<void>;
+  onDeleteComment: (postId: string, commentId: string) => Promise<void>;
   onOpenProfile: (userName: string) => void;
   onSharePost: (post: Post) => void;
   onOpenPhotoViewer: (post: Post) => void;
   scrollState: ScrollState;
   onCommandProcessed: () => void;
   onGoBack: () => void;
+  // @FIXML-FIX-185: Add onStartComment to props interface
+  onStartComment: (postId: string, commentToReplyTo?: Comment) => void;
 }
 
-const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedCommentId, currentUser, onSetTtsMessage, lastCommand, onStartComment, onReactToPost, onReactToComment, onOpenProfile, onSharePost, onOpenPhotoViewer, scrollState, onCommandProcessed, onGoBack }) => {
+const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedCommentId, currentUser, onSetTtsMessage, lastCommand, onReactToPost, onReactToComment, onOpenProfile, onSharePost, onOpenPhotoViewer, scrollState, onCommandProcessed, onGoBack, onPostComment, onEditComment, onDeleteComment, onStartComment }) => {
   const [post, setPost] = useState<Post | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [playingCommentId, setPlayingCommentId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
+  const [newCommentText, setNewCommentText] = useState('');
+  const [isPostingComment, setIsPostingComment] = useState(false);
+  
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const newCommentRef = useRef<HTMLDivElement>(null);
+  const commentInputRef = useRef<HTMLInputElement>(null);
   const { language } = useSettings();
 
-
-  const fetchPostDetails = useCallback(async () => {
-      return await geminiService.getPostById(postId);
-  }, [postId]);
-
-  // Effect for initial fetching and handling newly added comments
   useEffect(() => {
-    let isMounted = true;
-    
-    const initialFetch = async () => {
-      setIsLoading(true);
-      const fetchedPost = await fetchPostDetails();
-      if (!isMounted || !fetchedPost) {
-          setIsLoading(false);
-          // Handle post not found case
-          return;
-      }
-
-      setPost(fetchedPost);
-      setIsLoading(false);
-      onSetTtsMessage(getTtsPrompt('post_details_loaded', language));
-
-      if (newlyAddedCommentId) {
-        const newComment = fetchedPost.comments.find(c => c.id === newlyAddedCommentId);
-        if (newComment && newComment.type === 'audio') {
-            setPlayingCommentId(newlyAddedCommentId);
-        }
-        setTimeout(() => {
-            newCommentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 500);
-      }
-    };
-    
-    initialFetch();
-
-    return () => {
-        isMounted = false;
-    }
-  }, [postId, newlyAddedCommentId, fetchPostDetails, onSetTtsMessage, language]);
-
-  // Effect for polling for new comments
-  useEffect(() => {
-    const commentInterval = setInterval(async () => {
-        const freshPost = await geminiService.getPostById(postId);
-        setPost(currentPost => {
-            if (freshPost && currentPost && freshPost.commentCount > currentPost.commentCount) {
-                return freshPost;
+    setIsLoading(true);
+    const unsubscribe = firebaseService.listenToPost(postId, (livePost) => {
+        if (livePost) {
+            setPost(livePost);
+            if (isLoading) { // Only on initial load
+                onSetTtsMessage(getTtsPrompt('post_details_loaded', language));
             }
-            return currentPost;
-        });
-    }, 5000);
+        } else {
+            onSetTtsMessage("This post could not be found.");
+        }
+        setIsLoading(false);
 
-    return () => {
-        clearInterval(commentInterval);
-    }
-  }, [postId]);
+        // Highlight new comment logic
+        if (newlyAddedCommentId) {
+            setTimeout(() => {
+                newCommentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 500);
+        }
+    });
+
+    return () => unsubscribe();
+  }, [postId, onSetTtsMessage, language, newlyAddedCommentId, isLoading]);
 
 
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer || scrollState === 'none') {
-        return;
-    }
+    if (!scrollContainer || scrollState === 'none') return;
 
     let animationFrameId: number;
     const animateScroll = () => {
-        if (scrollState === 'down') {
-            scrollContainer.scrollTop += 2;
-        } else if (scrollState === 'up') {
-            scrollContainer.scrollTop -= 2;
-        }
+        if (scrollState === 'down') scrollContainer.scrollTop += 2;
+        else if (scrollState === 'up') scrollContainer.scrollTop -= 2;
         animationFrameId = requestAnimationFrame(animateScroll);
     };
 
     animationFrameId = requestAnimationFrame(animateScroll);
-
-    return () => {
-        cancelAnimationFrame(animationFrameId);
-    };
+    return () => cancelAnimationFrame(animationFrameId);
   }, [scrollState]);
+
+  useEffect(() => {
+    if (replyingTo) {
+        commentInputRef.current?.focus();
+    }
+  }, [replyingTo]);
   
+  const commentThreads = useMemo(() => {
+    if (!post?.comments) return [];
+
+    const comments = [...post.comments].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    const commentsById = new Map<string, Comment & { replies: Comment[] }>();
+    comments.forEach(c => commentsById.set(c.id, { ...c, replies: [] }));
+
+    const topLevelComments: (Comment & { replies: Comment[] })[] = [];
+    
+    comments.forEach(c => {
+        if (c.parentId && commentsById.has(c.parentId)) {
+            commentsById.get(c.parentId)?.replies.push(c);
+        } else {
+            const topLevel = commentsById.get(c.id);
+            if(topLevel) topLevelComments.push(topLevel);
+        }
+    });
+
+    return topLevelComments;
+  }, [post?.comments]);
+
   const handlePlayComment = useCallback((comment: Comment) => {
     if (comment.type !== 'audio') return;
-
-    if (playingCommentId === comment.id) {
-        setPlayingCommentId(null);
-    } else {
-        setPlayingCommentId(comment.id);
-    }
-  }, [playingCommentId]);
+    setPlayingCommentId(prev => prev === comment.id ? null : comment.id);
+  }, []);
   
   const handleMarkBestAnswer = async (commentId: string) => {
     if (!post) return;
@@ -134,39 +127,20 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
     }
   };
 
-  const handleReplyToComment = (commentToReplyTo: Comment) => {
-    if (post) {
-      onStartComment(post.id, commentToReplyTo);
-    }
-  };
-
   const handleCommand = useCallback(async (command: string) => {
     try {
         const intentResponse = await geminiService.processIntent(command);
         if (!post) return;
 
         switch (intentResponse.intent) {
-            case 'intent_go_back':
-                onGoBack();
-                break;
-            case 'intent_like':
-                onReactToPost(post.id, '👍');
-                break;
-            case 'intent_share':
-                if (post) {
-                    onSharePost(post);
-                }
-                break;
-            case 'intent_comment':
-                onStartComment(post.id);
-                break;
+            case 'intent_go_back': onGoBack(); break;
+            case 'intent_like': onReactToPost(post.id, '👍'); break;
+            case 'intent_share': if (post) onSharePost(post); break;
+            case 'intent_comment': commentInputRef.current?.focus(); break;
             case 'intent_play_comment_by_author':
                 if (intentResponse.slots?.target_name) {
                     const targetName = (intentResponse.slots.target_name as string).toLowerCase();
-                    const commentToPlay = post.comments.find(c => 
-                        c.author.name.toLowerCase().includes(targetName) && c.type === 'audio'
-                    );
-                    
+                    const commentToPlay = post.comments.find(c => c.author.name.toLowerCase().includes(targetName) && c.type === 'audio');
                     if (commentToPlay) {
                         handlePlayComment(commentToPlay);
                         onSetTtsMessage(`Playing comment from ${commentToPlay.author.name}.`);
@@ -177,17 +151,28 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
                 break;
         }
     } catch (error) {
-        console.error("Error processing command in PostDetailScreen:", error);
+        console.error("Error processing command:", error);
     } finally {
         onCommandProcessed();
     }
-  }, [post, onReactToPost, onStartComment, handlePlayComment, onSetTtsMessage, onCommandProcessed, onGoBack, onSharePost]);
+  }, [post, onReactToPost, handlePlayComment, onSetTtsMessage, onCommandProcessed, onGoBack, onSharePost]);
 
-  useEffect(() => {
-    if (lastCommand) {
-      handleCommand(lastCommand);
+  useEffect(() => { if (lastCommand) handleCommand(lastCommand); }, [lastCommand, handleCommand]);
+  
+  const handlePostCommentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!post || !newCommentText.trim() || isPostingComment) return;
+    setIsPostingComment(true);
+    try {
+        await onPostComment(post.id, newCommentText, replyingTo?.id || null);
+        setNewCommentText('');
+        setReplyingTo(null);
+    } catch (error) {
+        console.error("Failed to post comment:", error);
+    } finally {
+        setIsPostingComment(false);
     }
-  }, [lastCommand, handleCommand]);
+  };
 
 
   if (isLoading) {
@@ -205,52 +190,97 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
           post={post}
           currentUser={currentUser}
           isActive={true}
-          isPlaying={false} // Main post doesn't auto-play here
-          onPlayPause={() => {}} // Could be implemented if desired
+          isPlaying={false}
+          onPlayPause={() => {}}
           onReact={onReactToPost}
-          onViewPost={() => {}} // Already on the view
+          onViewPost={() => {}}
           onAuthorClick={onOpenProfile}
-          onStartComment={onStartComment}
           onSharePost={onSharePost}
           onOpenPhotoViewer={onOpenPhotoViewer}
+// @FIXML-FIX-185: Pass onStartComment prop to PostCard
+          onStartComment={onStartComment}
         />
 
         <div className="bg-slate-800/50 rounded-xl p-4">
-             <h3 className="text-lg font-bold text-slate-200 mb-3">Comments ({post.commentCount})</h3>
-             <button onClick={() => onStartComment(post.id)} className="w-full flex items-center justify-center gap-3 bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 px-4 rounded-lg transition-colors mb-4">
-                <Icon name="add-circle" className="w-6 h-6" />
-                <span>Add a Comment</span>
-             </button>
-             <div className="flex flex-col gap-3">
-                {post.comments.length > 0 ? [...post.comments].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map(comment => {
-                    const isBestAnswer = post.bestAnswerId === comment.id;
-                    const canMarkBest = post.postType === 'question' && post.author.id === currentUser.id;
-                    const isNew = comment.id === newlyAddedCommentId;
-
-                    return (
-                        <div key={comment.id} ref={isNew ? newCommentRef : null} className={`p-0.5 rounded-lg transition-all duration-500 ${isBestAnswer ? 'bg-gradient-to-br from-emerald-500 to-green-500' : ''} ${isNew ? 'ring-2 ring-rose-500' : ''}`}>
-                             <div className={`${isBestAnswer ? 'bg-slate-800 rounded-md' : ''}`}>
-                                <CommentCard 
-                                    comment={comment}
-                                    currentUser={currentUser}
-                                    isPlaying={playingCommentId === comment.id}
-                                    onPlayPause={() => handlePlayComment(comment)}
-                                    onAuthorClick={onOpenProfile}
-                                    onReply={handleReplyToComment}
-                                    onReact={(commentId, emoji) => onReactToComment(post.id, commentId, emoji)}
-                                />
-                                {canMarkBest && !isBestAnswer && (
-                                    <button onClick={() => handleMarkBestAnswer(comment.id)} className="mt-2 ml-14 text-xs font-semibold text-emerald-400 hover:underline">
-                                        Mark as best answer
-                                    </button>
-                                )}
-                            </div>
+             <h3 className="text-lg font-bold text-slate-200 mb-4">Comments ({post.commentCount})</h3>
+             <div className="flex flex-col gap-4">
+                {commentThreads.length > 0 ? commentThreads.map(comment => (
+                    <div key={comment.id} className="flex flex-col gap-3">
+                        <div ref={comment.id === newlyAddedCommentId ? newCommentRef : null}>
+                            <CommentCard 
+                                comment={comment}
+                                currentUser={currentUser}
+                                isPlaying={playingCommentId === comment.id}
+                                onPlayPause={() => handlePlayComment(comment)}
+                                onAuthorClick={onOpenProfile}
+                                onReply={setReplyingTo}
+                                onReact={(commentId, emoji) => onReactToComment(post.id, commentId, emoji)}
+// @FIXML-FIX-212: Pass onEdit and onDelete to CommentCard
+                                onEdit={(commentId, newText) => onEditComment(post.id, commentId, newText)}
+                                onDelete={(commentId) => onDeleteComment(post.id, commentId)}
+                            />
                         </div>
-                    )
-                }) : (
+                        {comment.replies.length > 0 && (
+                            <div className="ml-6 pl-4 border-l-2 border-slate-700 space-y-3">
+                                {comment.replies.map(reply => (
+                                     <div key={reply.id} ref={reply.id === newlyAddedCommentId ? newCommentRef : null}>
+                                        <CommentCard 
+                                            comment={reply}
+                                            currentUser={currentUser}
+                                            isPlaying={playingCommentId === reply.id}
+// @FIXML-FIX-224: Pass isReply to CommentCard
+                                            isReply={true}
+                                            onPlayPause={() => handlePlayComment(reply)}
+                                            onAuthorClick={onOpenProfile}
+                                            onReply={setReplyingTo}
+                                            onReact={(commentId, emoji) => onReactToComment(post.id, commentId, emoji)}
+                                            onEdit={(commentId, newText) => onEditComment(post.id, commentId, newText)}
+                                            onDelete={(commentId) => onDeleteComment(post.id, commentId)}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                         {replyingTo?.id === comment.id && (
+                             <div className="ml-10">
+                                <form onSubmit={handlePostCommentSubmit} className="flex items-center gap-2">
+                                    <img src={currentUser.avatarUrl} alt="Your avatar" className="w-8 h-8 rounded-full" />
+                                    <input
+                                        ref={commentInputRef}
+                                        type="text"
+                                        value={newCommentText}
+                                        onChange={(e) => setNewCommentText(e.target.value)}
+                                        placeholder={`Replying to ${replyingTo.author.name}...`}
+                                        className="flex-grow bg-slate-700 border-slate-600 text-slate-100 rounded-full py-2 px-4 text-sm"
+                                    />
+                                </form>
+                            </div>
+                         )}
+                    </div>
+                )) : (
                     <p className="text-slate-400 text-center py-4">Be the first to comment.</p>
                 )}
              </div>
+        </div>
+        
+        <div className="sticky bottom-0 bg-black/50 backdrop-blur-sm py-2">
+            {replyingTo && (
+                <div className="text-sm text-slate-400 px-2 pb-2 flex justify-between items-center">
+                    <span>Replying to {replyingTo.author.name}</span>
+                    <button onClick={() => setReplyingTo(null)} className="font-bold text-xs">Cancel</button>
+                </div>
+            )}
+            <form onSubmit={handlePostCommentSubmit} className="flex items-center gap-2">
+                <img src={currentUser.avatarUrl} alt="Your avatar" className="w-10 h-10 rounded-full" />
+                <input
+                    ref={!replyingTo ? commentInputRef : null}
+                    type="text"
+                    value={newCommentText}
+                    onChange={(e) => setNewCommentText(e.target.value)}
+                    placeholder="Write a comment..."
+                    className="flex-grow bg-slate-800 border border-slate-700 text-slate-100 rounded-full py-2.5 px-4 focus:ring-lime-500 focus:border-lime-500"
+                />
+            </form>
         </div>
       </div>
     </div>

@@ -499,7 +499,8 @@ export const firebaseService = {
         }
     },
     
-    async createComment(user: User, postId: string, data: { text?: string; imageFile?: File; audioBlob?: Blob; duration?: number }): Promise<Comment | null> {
+// @FIXML-FIX-613: Added parentId to the data type
+    async createComment(user: User, postId: string, data: { text?: string; imageFile?: File; audioBlob?: Blob; duration?: number; parentId?: string | null }): Promise<Comment | null> {
         if (user.commentingSuspendedUntil && new Date(user.commentingSuspendedUntil) > new Date()) {
             console.warn(`User ${user.id} is suspended from commenting.`);
             return null;
@@ -515,6 +516,8 @@ export const firebaseService = {
             },
             createdAt: Timestamp.now(),
             reactions: {},
+// @FIXML-FIX-613: Added parentId to the new comment object
+            parentId: data.parentId || null,
         };
     
         if (data.audioBlob && data.duration) {
@@ -542,6 +545,58 @@ export const firebaseService = {
             ...newComment,
             createdAt: new Date().toISOString()
         } as Comment;
+    },
+
+// @FIXML-FIX-619: Add editComment function
+    async editComment(postId: string, commentId: string, newText: string): Promise<void> {
+        const postRef = db.collection('posts').doc(postId);
+        try {
+            await db.runTransaction(async (transaction) => {
+                const postDoc = await transaction.get(postRef);
+                if (!postDoc.exists) throw "Post does not exist!";
+    
+                const postData = postDoc.data() as Post;
+                const comments = [...postData.comments] || [];
+                const commentIndex = comments.findIndex(c => c.id === commentId);
+    
+                if (commentIndex === -1) throw "Comment not found!";
+    
+                comments[commentIndex].text = newText;
+                comments[commentIndex].updatedAt = new Date().toISOString();
+    
+                transaction.update(postRef, { comments });
+            });
+        } catch (e) {
+            console.error("Edit comment transaction failed:", e);
+        }
+    },
+
+// @FIXML-FIX-624: Add deleteComment function
+    async deleteComment(postId: string, commentId: string): Promise<void> {
+        const postRef = db.collection('posts').doc(postId);
+        try {
+            await db.runTransaction(async (transaction) => {
+                const postDoc = await transaction.get(postRef);
+                if (!postDoc.exists) throw "Post does not exist!";
+    
+                const postData = postDoc.data() as Post;
+                const comments = [...postData.comments] || [];
+                const commentIndex = comments.findIndex(c => c.id === commentId);
+
+                if (commentIndex === -1) return; // Comment already deleted
+
+                // Soft delete
+                comments[commentIndex].isDeleted = true;
+                comments[commentIndex].text = undefined;
+                comments[commentIndex].audioUrl = undefined;
+                comments[commentIndex].imageUrl = undefined;
+                comments[commentIndex].reactions = {};
+
+                transaction.update(postRef, { comments });
+            });
+        } catch (e) {
+            console.error("Delete comment transaction failed:", e);
+        }
     },
 
     async voteOnPoll(userId: string, postId: string, optionIndex: number): Promise<Post | null> {

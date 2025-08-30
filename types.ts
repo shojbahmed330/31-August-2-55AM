@@ -145,12 +145,15 @@ export interface Comment {
     postId: string;
     author: Author;
     createdAt: string;
+    updatedAt?: string;
     type: 'audio' | 'text' | 'image';
     audioUrl?: string;
     duration?: number;
     text?: string;
     imageUrl?: string;
     reactions?: { [userId: string]: string };
+    parentId?: string | null;
+    isDeleted?: boolean;
 }
 
 export interface ReplyInfo {

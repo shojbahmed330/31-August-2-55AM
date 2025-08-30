@@ -14,19 +14,23 @@ interface ImageModalProps {
   onClose: () => void;
   onReactToPost: (postId: string, emoji: string) => void;
   onReactToComment: (postId: string, commentId: string, emoji: string) => void;
-  onPostComment: (postId: string, text: string) => Promise<void>;
+  onPostComment: (postId: string, text: string, parentId?: string | null) => Promise<void>;
+  onEditComment: (postId: string, commentId: string, newText: string) => Promise<void>;
+  onDeleteComment: (postId: string, commentId: string) => Promise<void>;
   onOpenProfile: (userName: string) => void;
   onSharePost: (post: Post) => void;
 }
 
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
-const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, onClose, onReactToPost, onReactToComment, onPostComment, onOpenProfile, onSharePost }) => {
+const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, onClose, onReactToPost, onReactToComment, onPostComment, onEditComment, onDeleteComment, onOpenProfile, onSharePost }) => {
   const [playingCommentId, setPlayingCommentId] = useState<string | null>(null);
   const [newCommentText, setNewCommentText] = useState('');
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [isReactionModalOpen, setIsReactionModalOpen] = useState(false);
   const [isPickerOpen, setPickerOpen] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
+  const commentInputRef = useRef<HTMLInputElement>(null);
   const pickerTimeout = useRef<number | null>(null);
 
   useEffect(() => {
@@ -44,7 +48,35 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
       document.body.style.overflow = 'auto';
     };
   }, [onClose]);
+
+  useEffect(() => {
+    if (replyingTo) {
+        commentInputRef.current?.focus();
+    }
+  }, [replyingTo]);
   
+  const commentThreads = useMemo(() => {
+    if (!post?.comments) return [];
+    
+    const comments = [...post.comments].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    const commentsById = new Map<string, Comment & { replies: Comment[] }>();
+    comments.forEach(c => commentsById.set(c.id, { ...c, replies: [] }));
+
+    const topLevelComments: (Comment & { replies: Comment[] })[] = [];
+    
+    comments.forEach(c => {
+        if (c.parentId && commentsById.has(c.parentId)) {
+            commentsById.get(c.parentId)?.replies.push(c);
+        } else {
+            const topLevel = commentsById.get(c.id);
+            if(topLevel) topLevelComments.push(topLevel);
+        }
+    });
+
+    return topLevelComments;
+  }, [post?.comments]);
+
   const handlePlayComment = (comment: Comment) => {
     if (comment.type !== 'audio') return;
     setPlayingCommentId(prev => prev === comment.id ? null : comment.id);
@@ -55,8 +87,9 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
     if (!post || !newCommentText.trim() || isPostingComment) return;
     setIsPostingComment(true);
     try {
-        await onPostComment(post.id, newCommentText);
+        await onPostComment(post.id, newCommentText, replyingTo?.id || null);
         setNewCommentText('');
+        setReplyingTo(null);
     } catch (error) {
         console.error("Failed to post comment:", error);
     } finally {
@@ -190,28 +223,71 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
           </div>
 
           <div className="flex-grow overflow-y-auto p-4 space-y-3">
-            {post.comments.length > 0 ? (
-                [...post.comments].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map(comment => (
+             {commentThreads.length > 0 ? commentThreads.map(comment => (
+                <div key={comment.id} className="flex flex-col gap-3">
                     <CommentCard 
-                        key={comment.id}
                         comment={comment}
                         currentUser={currentUser}
                         isPlaying={playingCommentId === comment.id}
                         onPlayPause={() => handlePlayComment(comment)}
                         onAuthorClick={onOpenProfile}
-                        onReply={() => setNewCommentText(prev => `${prev}@${comment.author.username} `)}
+                        onReply={setReplyingTo}
                         onReact={(commentId, emoji) => onReactToComment(post.id, commentId, emoji)}
+// @FIXML-FIX-236: Pass onEdit and onDelete to CommentCard
+                        onEdit={(commentId, newText) => onEditComment(post.id, commentId, newText)}
+                        onDelete={(commentId) => onDeleteComment(post.id, commentId)}
                     />
-                ))
-            ) : (
+                     {comment.replies.length > 0 && (
+                        <div className="ml-6 pl-4 border-l-2 border-slate-700 space-y-3">
+                            {comment.replies.map(reply => (
+                                <CommentCard 
+                                    key={reply.id}
+                                    comment={reply}
+                                    currentUser={currentUser}
+                                    isPlaying={playingCommentId === reply.id}
+// @FIXML-FIX-247: Pass isReply to CommentCard
+                                    isReply={true}
+                                    onPlayPause={() => handlePlayComment(reply)}
+                                    onAuthorClick={onOpenProfile}
+                                    onReply={setReplyingTo}
+                                    onReact={(commentId, emoji) => onReactToComment(post.id, commentId, emoji)}
+                                    onEdit={(commentId, newText) => onEditComment(post.id, commentId, newText)}
+                                    onDelete={(commentId) => onDeleteComment(post.id, commentId)}
+                                />
+                            ))}
+                        </div>
+                    )}
+                    {replyingTo?.id === comment.id && (
+                        <div className="ml-10">
+                            <form onSubmit={handlePostCommentSubmit}>
+                                <input
+                                    ref={commentInputRef}
+                                    type="text"
+                                    value={newCommentText}
+                                    onChange={(e) => setNewCommentText(e.target.value)}
+                                    placeholder={`Replying to ${replyingTo.author.name}...`}
+                                    className="w-full bg-slate-700 border-slate-600 text-slate-100 rounded-full py-2 px-4 text-sm"
+                                />
+                            </form>
+                        </div>
+                    )}
+                </div>
+            )) : (
                 <p className="text-center text-slate-500 pt-8">No comments yet.</p>
             )}
           </div>
 
           <footer className="p-3 border-t border-slate-700">
+                {replyingTo && (
+                    <div className="text-xs text-slate-400 px-2 pb-2 flex justify-between items-center">
+                        <span>Replying to {replyingTo.author.name}</span>
+                        <button onClick={() => setReplyingTo(null)} className="font-bold">Cancel</button>
+                    </div>
+                )}
                 <form onSubmit={handlePostCommentSubmit} className="flex items-center gap-2">
                     <img src={currentUser.avatarUrl} alt="Your avatar" className="w-9 h-9 rounded-full" />
                     <input
+                        ref={!replyingTo ? commentInputRef : null}
                         type="text"
                         value={newCommentText}
                         onChange={(e) => setNewCommentText(e.target.value)}

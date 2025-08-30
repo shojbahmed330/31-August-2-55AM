@@ -604,14 +604,27 @@ const UserApp: React.FC = () => {
     // Real-time listener will update the UI.
   };
 
-  const handlePostComment = async (postId: string, text: string) => {
+  const handlePostComment = async (postId: string, text: string, parentId: string | null = null) => {
     if (!user || !text.trim()) return;
     if (user.commentingSuspendedUntil && new Date(user.commentingSuspendedUntil) > new Date()) {
         setTtsMessage(getTtsPrompt('comment_suspended', language));
         return;
     }
-    await firebaseService.createComment(user, postId, { text });
+// @FIXML-FIX-613: pass parentId to createComment
+    await firebaseService.createComment(user, postId, { text, parentId });
     // Listener will add the new comment to the UI.
+  };
+
+  const handleEditComment = async (postId: string, commentId: string, newText: string) => {
+    if (!user) return;
+// @FIXML-FIX-619: firebaseService.editComment was missing. It will be added.
+    await firebaseService.editComment(postId, commentId, newText);
+  };
+  
+  const handleDeleteComment = async (postId: string, commentId: string) => {
+      if (!user) return;
+// @FIXML-FIX-624: firebaseService.deleteComment was missing. It will be added.
+      await firebaseService.deleteComment(postId, commentId);
   };
 
   const handleSharePost = async (post: Post) => {
@@ -773,7 +786,7 @@ const UserApp: React.FC = () => {
       case AppView.PROFILE:
         return <ProfileScreen {...commonScreenProps} username={currentView.props.username} onStartMessage={handleStartMessage} onEditProfile={handleEditProfile} onViewPost={handleViewPost} onReactToPost={handleReactToPost} onCurrentUserUpdate={handleCurrentUserUpdate} onPostCreated={handlePostCreated} onBlockUser={handleBlockUser} />;
       case AppView.POST_DETAILS:
-        return <PostDetailScreen {...commonScreenProps} postId={currentView.props.postId} newlyAddedCommentId={currentView.props.newlyAddedCommentId} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment}/>;
+        return <PostDetailScreen {...commonScreenProps} postId={currentView.props.postId} newlyAddedCommentId={currentView.props.newlyAddedCommentId} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment} onPostComment={handlePostComment} onEditComment={handleEditComment} onDeleteComment={handleDeleteComment} />;
       case AppView.FRIENDS:
         return <FriendsScreen {...commonScreenProps} />;
       case AppView.SEARCH_RESULTS:
@@ -1076,6 +1089,8 @@ const UserApp: React.FC = () => {
             onReactToPost={handleReactToPost}
             onReactToComment={handleReactToComment}
             onPostComment={handlePostComment}
+            onEditComment={handleEditComment}
+            onDeleteComment={handleDeleteComment}
             onOpenProfile={handleOpenProfile}
             onSharePost={handleSharePost}
         />

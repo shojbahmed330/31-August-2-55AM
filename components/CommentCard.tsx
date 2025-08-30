@@ -14,11 +14,16 @@ interface CommentCardProps {
   onAuthorClick: (username: string) => void;
   onReply: (comment: Comment) => void;
   onReact: (commentId: string, emoji: string) => void;
+  // @FIXML-FIX-212: Add optional onEdit and onDelete props
+  onEdit?: (commentId: string, newText: string) => void;
+  onDelete?: (commentId: string) => void;
+  // @FIXML-FIX-224: Add optional isReply prop
+  isReply?: boolean;
 }
 
 const AVAILABLE_REACTIONS = ['❤️', '😂', '👍', '😢', '😡', '🔥', '😮'];
 
-const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlaying, onPlayPause, onAuthorClick, onReply, onReact }) => {
+const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlaying, onPlayPause, onAuthorClick, onReply, onReact, onEdit, onDelete }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPickerOpen, setPickerOpen] = useState(false);
   const pickerContainerRef = useRef<HTMLDivElement>(null);
@@ -90,6 +95,22 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
   
   const myReaction = comment.reactions?.[currentUser.id];
   const reactionCount = Object.keys(comment.reactions || {}).length;
+  const isAuthor = comment.author.id === currentUser.id;
+
+  const handleEdit = () => {
+      if (onEdit && comment.text) {
+          const newText = prompt("Edit your comment:", comment.text);
+          if (newText !== null && newText.trim() !== comment.text) {
+              onEdit(comment.id, newText.trim());
+          }
+      }
+  };
+
+  const handleDelete = () => {
+      if (onDelete && window.confirm("Are you sure you want to delete this comment?")) {
+          onDelete(comment.id);
+      }
+  };
 
   const renderContent = () => {
     switch(comment.type) {
@@ -160,6 +181,14 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
                 <button onClick={() => onReply(comment)} className="font-semibold hover:underline">Reply</button>
                 <span className="text-slate-500">•</span>
                 <span className="text-slate-500">{timeAgo}</span>
+                {isAuthor && onEdit && onDelete && (
+                    <>
+                        <span className="text-slate-500">•</span>
+                        <button onClick={handleEdit} className="font-semibold hover:underline">Edit</button>
+                        <span className="text-slate-500">•</span>
+                        <button onClick={handleDelete} className="font-semibold hover:underline text-red-400">Delete</button>
+                    </>
+                )}
             </div>
         </div>
     </div>
