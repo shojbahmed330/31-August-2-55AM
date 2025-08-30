@@ -193,6 +193,7 @@ const UserApp: React.FC = () => {
         viewerPostUnsubscribe.current = null;
     }
     setViewerPost(null);
+    setIsLoadingViewerPost(false); // Reset loading state
   }, []);
 
   useEffect(() => {
@@ -610,20 +611,17 @@ const UserApp: React.FC = () => {
         setTtsMessage(getTtsPrompt('comment_suspended', language));
         return;
     }
-// @FIXML-FIX-613: pass parentId to createComment
     await firebaseService.createComment(user, postId, { text, parentId });
     // Listener will add the new comment to the UI.
   };
 
   const handleEditComment = async (postId: string, commentId: string, newText: string) => {
     if (!user) return;
-// @FIXML-FIX-619: firebaseService.editComment was missing. It will be added.
     await firebaseService.editComment(postId, commentId, newText);
   };
   
   const handleDeleteComment = async (postId: string, commentId: string) => {
       if (!user) return;
-// @FIXML-FIX-624: firebaseService.deleteComment was missing. It will be added.
       await firebaseService.deleteComment(postId, commentId);
   };
 
@@ -651,18 +649,23 @@ const UserApp: React.FC = () => {
 
   const handleOpenPhotoViewer = (post: Post) => {
     if (!post.imageUrl && !post.newPhotoUrl) return;
-    handleClosePhotoViewer(); // Ensure any previous listener is cleaned up
-    setIsLoadingViewerPost(true);
     
-    // Use the new firebaseService.listenToPost method
+    handleClosePhotoViewer(); // Ensure any previous listener is cleaned up
+
+    // Immediately set the post from the feed to prevent null error
+    setViewerPost(post); 
+    setIsLoadingViewerPost(true); // Indicate that we are fetching fresh data
+    
+    // Use the new firebaseService.listenToPost method for live updates
     const unsubscribe = firebaseService.listenToPost(post.id, (updatedPost) => {
         if (updatedPost) {
             setViewerPost(updatedPost);
         } else {
+            // If the post is deleted while viewing, handle it gracefully
             setTtsMessage("Post not found or has been deleted.");
             handleClosePhotoViewer();
         }
-        setIsLoadingViewerPost(false);
+        setIsLoadingViewerPost(false); // Fresh data has arrived
     });
     viewerPostUnsubscribe.current = unsubscribe;
   };

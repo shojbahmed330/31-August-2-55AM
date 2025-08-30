@@ -133,18 +133,15 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
   }, [post?.reactions]);
 
-  if (isLoading) {
-    return (
-       <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-          <Icon name="logo" className="w-16 h-16 text-lime-500 animate-spin"/>
-       </div>
-    );
+  if (!post) {
+    return null;
   }
-  
-  if (!post) return null;
 
   const imageUrl = post.imageUrl || post.newPhotoUrl;
-  if (!imageUrl) return null;
+  if (!imageUrl) {
+    onClose();
+    return null;
+  }
 
   return (
     <>
@@ -233,7 +230,6 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
                         onAuthorClick={onOpenProfile}
                         onReply={setReplyingTo}
                         onReact={(commentId, emoji) => onReactToComment(post.id, commentId, emoji)}
-// @FIXML-FIX-236: Pass onEdit and onDelete to CommentCard
                         onEdit={(commentId, newText) => onEditComment(post.id, commentId, newText)}
                         onDelete={(commentId) => onDeleteComment(post.id, commentId)}
                     />
@@ -245,7 +241,6 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
                                     comment={reply}
                                     currentUser={currentUser}
                                     isPlaying={playingCommentId === reply.id}
-// @FIXML-FIX-247: Pass isReply to CommentCard
                                     isReply={true}
                                     onPlayPause={() => handlePlayComment(reply)}
                                     onAuthorClick={onOpenProfile}
