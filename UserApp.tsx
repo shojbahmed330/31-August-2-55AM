@@ -174,6 +174,7 @@ const UserApp: React.FC = () => {
   const notificationPanelRef = useRef<HTMLDivElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null); // To hold the active speech recognition instance
+  const viewerPostUnsubscribe = useRef<(() => void) | null>(null);
   const currentView = viewStack[viewStack.length - 1];
   const unreadNotificationCount = notifications.filter(n => !n.read).length;
   const friendRequestCount = (currentView?.props?.requests as User[] || []).length; // Used for badge on sidebar
@@ -184,6 +185,14 @@ const UserApp: React.FC = () => {
     if (postMatch && postMatch[1]) {
         setInitialDeepLink({ view: AppView.POST_DETAILS, props: { postId: postMatch[1] } });
     }
+  }, []);
+
+  const handleClosePhotoViewer = useCallback(() => {
+    if (viewerPostUnsubscribe.current) {
+        viewerPostUnsubscribe.current();
+        viewerPostUnsubscribe.current = null;
+    }
+    setViewerPost(null);
   }, []);
 
   useEffect(() => {
@@ -253,8 +262,9 @@ const UserApp: React.FC = () => {
         unsubscribeFriends();
         unsubscribeNotifications();
         if (activityInterval) clearInterval(activityInterval);
+        handleClosePhotoViewer();
     };
-  }, [currentView?.view, initialDeepLink, language]);
+  }, [currentView?.view, initialDeepLink, language, handleClosePhotoViewer]);
 
   useEffect(() => {
     setTtsMessage(getTtsPrompt('welcome', language));
@@ -583,14 +593,26 @@ const UserApp: React.FC = () => {
   const handleReactToPost = async (postId: string, emoji: string) => {
     if (!user) return;
     const success = await firebaseService.reactToPost(postId, user.id, emoji);
-    if (success) {
-      // The real-time listener will update the UI, so no need for a TTS message here
-      // unless we want explicit feedback.
-      // setTtsMessage(`Reacted with ${emoji}`);
-    } else {
+    if (!success) {
       setTtsMessage(`Could not react. You may be offline.`);
     }
-  }
+  };
+
+  const handleReactToComment = async (postId: string, commentId: string, emoji: string) => {
+    if (!user) return;
+    await firebaseService.reactToComment(postId, commentId, user.id, emoji);
+    // Real-time listener will update the UI.
+  };
+
+  const handlePostComment = async (postId: string, text: string) => {
+    if (!user || !text.trim()) return;
+    if (user.commentingSuspendedUntil && new Date(user.commentingSuspendedUntil) > new Date()) {
+        setTtsMessage(getTtsPrompt('comment_suspended', language));
+        return;
+    }
+    await firebaseService.createComment(user, postId, { text });
+    // Listener will add the new comment to the UI.
+  };
 
   const handleSharePost = async (post: Post) => {
     const postUrl = `${window.location.origin}${window.location.pathname}#/post/${post.id}`;
@@ -614,21 +636,23 @@ const UserApp: React.FC = () => {
     }
   };
 
-  const handleOpenPhotoViewer = async (post: Post) => {
+  const handleOpenPhotoViewer = (post: Post) => {
     if (!post.imageUrl && !post.newPhotoUrl) return;
+    handleClosePhotoViewer(); // Ensure any previous listener is cleaned up
     setIsLoadingViewerPost(true);
-    setViewerPost(null); // Clear previous post
-    const fullPost = await firebaseService.getPostById(post.id);
-    if (fullPost) {
-        setViewerPost(fullPost);
-    } else {
-        setTtsMessage("Could not load post details.");
-    }
-    setIsLoadingViewerPost(false);
+    
+    // Use the new firebaseService.listenToPost method
+    const unsubscribe = firebaseService.listenToPost(post.id, (updatedPost) => {
+        if (updatedPost) {
+            setViewerPost(updatedPost);
+        } else {
+            setTtsMessage("Post not found or has been deleted.");
+            handleClosePhotoViewer();
+        }
+        setIsLoadingViewerPost(false);
+    });
+    viewerPostUnsubscribe.current = unsubscribe;
   };
-
-  const handleClosePhotoViewer = () => setViewerPost(null);
-
 
   const handleOpenProfile = (username: string) => navigate(AppView.PROFILE, { username });
   const handleViewPost = (postId: string) => navigate(AppView.POST_DETAILS, { postId });
@@ -639,7 +663,7 @@ const UserApp: React.FC = () => {
         setTtsMessage(getTtsPrompt('comment_suspended', language));
         return;
     }
-    setViewerPost(null); // Close photo viewer if open before navigating
+    handleClosePhotoViewer(); // Close photo viewer if open before navigating
     navigate(AppView.CREATE_COMMENT, { postId, commentToReplyTo });
   };
 
@@ -749,7 +773,7 @@ const UserApp: React.FC = () => {
       case AppView.PROFILE:
         return <ProfileScreen {...commonScreenProps} username={currentView.props.username} onStartMessage={handleStartMessage} onEditProfile={handleEditProfile} onViewPost={handleViewPost} onReactToPost={handleReactToPost} onCurrentUserUpdate={handleCurrentUserUpdate} onPostCreated={handlePostCreated} onBlockUser={handleBlockUser} />;
       case AppView.POST_DETAILS:
-        return <PostDetailScreen {...commonScreenProps} postId={currentView.props.postId} newlyAddedCommentId={currentView.props.newlyAddedCommentId} onReactToPost={handleReactToPost} />;
+        return <PostDetailScreen {...commonScreenProps} postId={currentView.props.postId} newlyAddedCommentId={currentView.props.newlyAddedCommentId} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment}/>;
       case AppView.FRIENDS:
         return <FriendsScreen {...commonScreenProps} />;
       case AppView.SEARCH_RESULTS:
@@ -1050,7 +1074,8 @@ const UserApp: React.FC = () => {
             currentUser={user}
             onClose={handleClosePhotoViewer} 
             onReactToPost={handleReactToPost}
-            onStartComment={handleStartComment}
+            onReactToComment={handleReactToComment}
+            onPostComment={handlePostComment}
             onOpenProfile={handleOpenProfile}
             onSharePost={handleSharePost}
         />

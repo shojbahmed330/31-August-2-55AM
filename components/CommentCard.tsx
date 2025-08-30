@@ -1,25 +1,36 @@
 
 
-import React, { useRef, useEffect } from 'react';
-import type { Comment } from '../types';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
+import type { Comment, User } from '../types';
 import Icon from './Icon';
 import Waveform from './Waveform';
 import TaggedContent from './TaggedContent';
 
 interface CommentCardProps {
   comment: Comment;
+  currentUser: User;
   isPlaying: boolean;
   onPlayPause: () => void;
   onAuthorClick: (username: string) => void;
   onReply: (comment: Comment) => void;
+  onReact: (commentId: string, emoji: string) => void;
 }
 
-const CommentCard: React.FC<CommentCardProps> = ({ comment, isPlaying, onPlayPause, onAuthorClick, onReply }) => {
+const AVAILABLE_REACTIONS = ['❤️', '😂', '👍', '😢', '🔥', '😮'];
+
+const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlaying, onPlayPause, onAuthorClick, onReply, onReact }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const timeAgo = new Date(comment.createdAt).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric'
-  });
+  const [isPickerOpen, setPickerOpen] = useState(false);
+  const pickerTimeout = useRef<number | null>(null);
+
+  const timeAgo = useMemo(() => {
+      const date = new Date(comment.createdAt);
+      if (isNaN(date.getTime())) {
+          return 'Just now';
+      }
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }, [comment.createdAt]);
+
 
   useEffect(() => {
     const audioElement = audioRef.current;
@@ -36,7 +47,6 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, isPlaying, onPlayPau
     const audioElement = audioRef.current;
     if (audioElement) {
         const handleEnded = () => {
-            // Ensure onPlayPause is only called when it was actually playing
             if (!audioElement.paused) {
                 onPlayPause();
             }
@@ -48,6 +58,25 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, isPlaying, onPlayPau
     }
   }, [onPlayPause]);
 
+  const handleReact = (e: React.MouseEvent, emoji: string) => {
+    e.stopPropagation();
+    onReact(comment.id, emoji);
+    setPickerOpen(false);
+  };
+
+  const handleMouseEnter = () => {
+    if (pickerTimeout.current) clearTimeout(pickerTimeout.current);
+    setPickerOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    pickerTimeout.current = window.setTimeout(() => {
+        setPickerOpen(false);
+    }, 300);
+  };
+  
+  const myReaction = comment.reactions?.[currentUser.id];
+  const reactionCount = Object.keys(comment.reactions || {}).length;
 
   const renderContent = () => {
     switch(comment.type) {
@@ -86,7 +115,37 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, isPlaying, onPlayPau
                 <button onClick={() => onAuthorClick(comment.author.username)} className="font-bold text-slate-200 hover:text-sky-300 transition-colors">{comment.author.name}</button>
             </div>
             {renderContent()}
-            <div className="mt-2 flex items-center gap-4 text-xs text-slate-400">
+            
+            {reactionCount > 0 && (
+                <div className="absolute -bottom-2 right-2 bg-slate-800 rounded-full px-2 py-0.5 text-xs flex items-center gap-1 border border-slate-600">
+                    <span>{Object.keys(comment.reactions || {})[0]}</span>
+                    <span>{reactionCount}</span>
+                </div>
+            )}
+            
+            <div className="mt-2 flex items-center gap-4 text-xs text-slate-400 relative">
+                <div 
+                    onMouseEnter={handleMouseEnter} 
+                    onMouseLeave={handleMouseLeave}
+                    className="relative"
+                >
+                    {isPickerOpen && (
+                        <div 
+                            onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}
+                            className="absolute bottom-full mb-2 bg-slate-900/90 backdrop-blur-sm border border-lime-500/20 rounded-full p-1.5 flex items-center gap-1 shadow-lg animate-fade-in-fast"
+                        >
+                            {AVAILABLE_REACTIONS.map(emoji => (
+                                <button key={emoji} onClick={(e) => handleReact(e, emoji)} className="text-2xl p-1 rounded-full hover:bg-slate-700/50 transition-transform hover:scale-125">
+                                    {emoji}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    <button onClick={(e) => handleReact(e, myReaction || '👍')} className={`font-semibold hover:underline ${myReaction ? 'text-lime-400' : ''}`}>
+                      {myReaction ? 'Reacted' : 'React'}
+                    </button>
+                </div>
+                <span className="text-slate-500">•</span>
                 <button onClick={() => onReply(comment)} className="font-semibold hover:underline">Reply</button>
                 <span className="text-slate-500">•</span>
                 <span className="text-slate-500">{timeAgo}</span>

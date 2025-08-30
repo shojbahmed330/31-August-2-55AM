@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { Post, User, Comment, ScrollState } from '../types';
 import { PostCard } from './PostCard';
@@ -17,6 +18,7 @@ interface PostDetailScreenProps {
   lastCommand: string | null;
   onStartComment: (postId: string, commentToReplyTo?: Comment) => void;
   onReactToPost: (postId: string, emoji: string) => void;
+  onReactToComment: (postId: string, commentId: string, emoji: string) => void;
   onOpenProfile: (userName: string) => void;
   onSharePost: (post: Post) => void;
   onOpenPhotoViewer: (post: Post) => void;
@@ -25,7 +27,7 @@ interface PostDetailScreenProps {
   onGoBack: () => void;
 }
 
-const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedCommentId, currentUser, onSetTtsMessage, lastCommand, onStartComment, onReactToPost, onOpenProfile, onSharePost, onOpenPhotoViewer, scrollState, onCommandProcessed, onGoBack }) => {
+const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedCommentId, currentUser, onSetTtsMessage, lastCommand, onStartComment, onReactToPost, onReactToComment, onOpenProfile, onSharePost, onOpenPhotoViewer, scrollState, onCommandProcessed, onGoBack }) => {
   const [post, setPost] = useState<Post | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [playingCommentId, setPlayingCommentId] = useState<string | null>(null);
@@ -231,10 +233,12 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
                              <div className={`${isBestAnswer ? 'bg-slate-800 rounded-md' : ''}`}>
                                 <CommentCard 
                                     comment={comment}
+                                    currentUser={currentUser}
                                     isPlaying={playingCommentId === comment.id}
                                     onPlayPause={() => handlePlayComment(comment)}
                                     onAuthorClick={onOpenProfile}
                                     onReply={handleReplyToComment}
+                                    onReact={(commentId, emoji) => onReactToComment(post.id, commentId, emoji)}
                                 />
                                 {canMarkBest && !isBestAnswer && (
                                     <button onClick={() => handleMarkBestAnswer(comment.id)} className="mt-2 ml-14 text-xs font-semibold text-emerald-400 hover:underline">

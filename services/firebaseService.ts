@@ -1,3 +1,4 @@
+
 // @ts-nocheck
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
@@ -38,7 +39,10 @@ const docToPost = (doc: firebase.firestore.DocumentSnapshot): Post => {
         id: doc.id,
         createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
         reactions: data.reactions || {},
-        comments: data.comments || [],
+        comments: (data.comments || []).map(c => ({
+            ...c,
+            createdAt: c.createdAt instanceof firebase.firestore.Timestamp ? c.createdAt.toDate().toISOString() : new Date().toISOString(),
+        })),
         commentCount: data.commentCount || 0,
     } as Post;
 }
@@ -334,6 +338,21 @@ export const firebaseService = {
         });
     },
 
+    // FIX: Add a listener for a single post.
+    listenToPost(postId: string, callback: (post: Post | null) => void): () => void {
+        const postRef = db.collection('posts').doc(postId);
+        return postRef.onSnapshot((doc) => {
+            if (doc.exists) {
+                callback(docToPost(doc));
+            } else {
+                callback(null);
+            }
+        }, (error) => {
+            console.error(`Error listening to post ${postId}:`, error);
+            callback(null);
+        });
+    },
+
     async createPost(
         postData: any,
         media: {
@@ -444,6 +463,44 @@ export const firebaseService = {
             return false;
         }
     },
+
+    // FIX: Add reactToComment function
+    async reactToComment(postId: string, commentId: string, userId: string, newReaction: string): Promise<boolean> {
+        const postRef = db.collection('posts').doc(postId);
+        try {
+            await db.runTransaction(async (transaction) => {
+                const postDoc = await transaction.get(postRef);
+                if (!postDoc.exists) throw "Post does not exist!";
+    
+                const postData = postDoc.data() as Post;
+                const comments = postData.comments || [];
+                const commentIndex = comments.findIndex(c => c.id === commentId);
+    
+                if (commentIndex === -1) throw "Comment not found!";
+    
+                const comment = comments[commentIndex];
+                const reactions = { ...(comment.reactions || {}) };
+                const userPreviousReaction = reactions[userId];
+    
+                if (userPreviousReaction === newReaction) {
+                    // Toggling off
+                    delete reactions[userId];
+                } else {
+                    // Adding or changing reaction
+                    reactions[userId] = newReaction;
+                }
+                
+                // Update the comment with new reactions
+                comments[commentIndex] = { ...comment, reactions };
+    
+                transaction.update(postRef, { comments });
+            });
+            return true;
+        } catch (e) {
+            console.error("React to comment transaction failed:", e);
+            return false;
+        }
+    },
     
     async createComment(user: User, postId: string, data: { text?: string; imageFile?: File; audioBlob?: Blob; duration?: number }): Promise<Comment | null> {
         if (user.commentingSuspendedUntil && new Date(user.commentingSuspendedUntil) > new Date()) {
@@ -459,7 +516,8 @@ export const firebaseService = {
             author: {
                 id: user.id, name: user.name, username: user.username, avatarUrl: user.avatarUrl,
             },
-            createdAt: new Date().toISOString(), // Temporary client-side timestamp
+            createdAt: serverTimestamp(), // Use server timestamp directly
+            reactions: {},
         };
     
         if (data.audioBlob && data.duration) {
@@ -477,19 +535,17 @@ export const firebaseService = {
         } else {
             throw new Error("Comment must have content.");
         }
-    
-        // Prepare the object for Firestore
-        const finalCommentObject = { ...newComment };
-        delete finalCommentObject.id; // ID is not stored in the array object
-        finalCommentObject.createdAt = new Date(); 
-    
+        
         await postRef.update({
-            comments: arrayUnion(finalCommentObject),
+            comments: arrayUnion(newComment),
             commentCount: increment(1),
         });
         
-        // Return the client-side object for immediate UI update
-        return newComment as Comment;
+        // Return a client-side version for immediate UI update if needed, though listener is preferred
+        return {
+            ...newComment,
+            createdAt: new Date().toISOString()
+        } as Comment;
     },
 
     async voteOnPoll(userId: string, postId: string, optionIndex: number): Promise<Post | null> {

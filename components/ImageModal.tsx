@@ -1,11 +1,12 @@
 
 
-import React, { useEffect, useState } from 'react';
+
+import React, { useEffect, useState, useMemo } from 'react';
 import { Post, User, Comment } from '../types';
 import Icon from './Icon';
 import CommentCard from './CommentCard';
 import TaggedContent from './TaggedContent';
-import { PostCard } from './PostCard'; 
+import ReactionListModal from './ReactionListModal';
 
 interface ImageModalProps {
   post: Post | null;
@@ -13,13 +14,19 @@ interface ImageModalProps {
   currentUser: User;
   onClose: () => void;
   onReactToPost: (postId: string, emoji: string) => void;
-  onStartComment: (postId: string, commentToReplyTo?: Comment) => void;
+  onReactToComment: (postId: string, commentId: string, emoji: string) => void;
+  onPostComment: (postId: string, text: string) => Promise<void>;
   onOpenProfile: (userName: string) => void;
   onSharePost: (post: Post) => void;
 }
 
-const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, onClose, onReactToPost, onStartComment, onOpenProfile, onSharePost }) => {
+const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
+
+const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, onClose, onReactToPost, onReactToComment, onPostComment, onOpenProfile, onSharePost }) => {
   const [playingCommentId, setPlayingCommentId] = useState<string | null>(null);
+  const [newCommentText, setNewCommentText] = useState('');
+  const [isPostingComment, setIsPostingComment] = useState(false);
+  const [isReactionModalOpen, setIsReactionModalOpen] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -41,13 +48,35 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
     if (comment.type !== 'audio') return;
     setPlayingCommentId(prev => prev === comment.id ? null : comment.id);
   };
-
-  const handleReplyToComment = (commentToReplyTo: Comment) => {
-    if (post) {
-      onStartComment(post.id, commentToReplyTo);
-    }
-  };
   
+  const handlePostCommentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!post || !newCommentText.trim() || isPostingComment) return;
+    setIsPostingComment(true);
+    await onPostComment(post.id, newCommentText);
+    setNewCommentText('');
+    setIsPostingComment(false);
+  };
+
+  const myReaction = useMemo(() => {
+    if (!currentUser || !post?.reactions) return null;
+    return post.reactions[currentUser.id] || null;
+  }, [currentUser, post?.reactions]);
+
+  const reactionCount = useMemo(() => {
+    if (!post?.reactions) return 0;
+    return Object.keys(post.reactions).length;
+  }, [post?.reactions]);
+
+  const topReactions = useMemo(() => {
+    if (!post?.reactions) return [];
+    const counts: { [key: string]: number } = {};
+    Object.values(post.reactions).forEach(emoji => {
+        counts[emoji] = (counts[emoji] || 0) + 1;
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
+  }, [post?.reactions]);
+
   if (isLoading) {
     return (
        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
@@ -62,13 +91,14 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
   if (!imageUrl) return null;
 
   return (
+    <>
     <div
       className="fixed inset-0 bg-black/85 z-50 flex items-stretch"
       onClick={onClose}
     >
       <button
         onClick={(e) => { e.stopPropagation(); onClose(); }}
-        className="absolute top-4 right-4 p-2 rounded-full text-white bg-black/30 hover:bg-black/60 transition-colors z-20"
+        className="absolute top-4 right-4 p-2 rounded-full text-white bg-black/30 hover:bg-black/60 transition-colors z-[51]"
         aria-label="Close image viewer"
       >
         <Icon name="close" className="w-8 h-8" />
@@ -96,39 +126,84 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
               )}
           </header>
           
-          <div className="p-2 border-b border-slate-700">
-            <PostCard 
-              post={post}
-              currentUser={currentUser}
-              onReact={onReactToPost}
-              onStartComment={onStartComment}
-              onSharePost={onSharePost}
-              isActive={true}
-              isPlaying={false}
-              onPlayPause={()=>{}}
-              onViewPost={()=>{}}
-              onAuthorClick={()=>{}}
-            />
+          <div className="px-4 py-2 border-b border-slate-700">
+             {(reactionCount > 0 || post.commentCount > 0) && (
+                <div className="flex items-center justify-between py-2">
+                    <button onClick={() => setIsReactionModalOpen(true)} className="flex items-center">
+                        {topReactions.map(emoji => 
+                            <span key={emoji} className="text-lg -ml-1 border-2 border-slate-900 rounded-full">{emoji}</span>
+                        )}
+                        <span className="text-sm text-lime-500 ml-2 hover:underline">{reactionCount}</span>
+                    </button>
+                    <span className="text-sm text-lime-500">{post.commentCount || 0} comments</span>
+                </div>
+              )}
+          </div>
+          
+           <div className="flex items-center text-lime-400 gap-1 p-2 border-b border-slate-700">
+              <button onClick={() => onReactToPost(post.id, myReaction || '👍')} className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200 ${myReaction ? 'text-lime-400 font-bold' : 'text-lime-400/80'}`}>
+                <Icon name="like" className="w-6 h-6" />
+                <span className="font-semibold text-base">React</span>
+              </button>
+               <button className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200 text-lime-400/80">
+                <Icon name="comment" className="w-6 h-6" />
+                <span className="font-semibold text-base">Comment</span>
+              </button>
+              <button onClick={() => onSharePost(post)} className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200 text-lime-400/80">
+                <Icon name="share" className="w-6 h-6" />
+                <span className="font-semibold text-base">Share</span>
+              </button>
           </div>
 
           <div className="flex-grow overflow-y-auto p-4 space-y-3">
             {post.comments.length > 0 ? (
-                post.comments.map(comment => (
+                [...post.comments].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map(comment => (
                     <CommentCard 
                         key={comment.id}
                         comment={comment}
+                        currentUser={currentUser}
                         isPlaying={playingCommentId === comment.id}
                         onPlayPause={() => handlePlayComment(comment)}
                         onAuthorClick={onOpenProfile}
-                        onReply={handleReplyToComment}
+                        onReply={() => {}} // Reply from here could be complex, maybe use onStartComment
+                        onReact={(commentId, emoji) => onReactToComment(post.id, commentId, emoji)}
                     />
                 ))
             ) : (
                 <p className="text-center text-slate-500 pt-8">No comments yet.</p>
             )}
           </div>
+
+          <footer className="p-3 border-t border-slate-700">
+                <form onSubmit={handlePostCommentSubmit} className="flex items-center gap-2">
+                    <img src={currentUser.avatarUrl} alt="Your avatar" className="w-9 h-9 rounded-full" />
+                    <input
+                        type="text"
+                        value={newCommentText}
+                        onChange={(e) => setNewCommentText(e.target.value)}
+                        placeholder="Write a comment..."
+                        className="flex-grow bg-slate-800 border border-slate-700 text-slate-100 rounded-full py-2 px-4 focus:ring-lime-500 focus:border-lime-500"
+                    />
+                    <button
+                        type="submit"
+                        disabled={isPostingComment || !newCommentText.trim()}
+                        className="p-2.5 rounded-full bg-lime-600 text-black hover:bg-lime-500 disabled:bg-slate-500 disabled:cursor-not-allowed"
+                        aria-label="Post comment"
+                    >
+                        <Icon name="paper-airplane" className="w-5 h-5" />
+                    </button>
+                </form>
+          </footer>
       </aside>
     </div>
+    {isReactionModalOpen && (
+        <ReactionListModal
+            isOpen={isReactionModalOpen}
+            onClose={() => setIsReactionModalOpen(false)}
+            reactions={post.reactions || {}}
+        />
+    )}
+    </>
   );
 };
 
