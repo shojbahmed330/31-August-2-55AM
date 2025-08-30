@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RecordingState, User, Post, PollOption, AppView } from '../types';
-import { IMAGE_GENERATION_COST, getTtsPrompt } from '../constants';
+import { IMAGE_GENERATION_COST, getTtsPrompt, REEL_TEXT_FONTS } from '../constants';
 import Waveform from './Waveform';
 import Icon from './Icon';
 import { geminiService } from '../services/geminiService';
@@ -22,10 +22,17 @@ interface CreatePostScreenProps {
   selectMedia?: 'image' | 'video';
 }
 
+const EMOJIS = ['😂', '❤️', '👍', '😢', '😡', '🔥', '😊', '😮'];
+
 const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onPostCreated, onSetTtsMessage, lastCommand, onDeductCoinsForImage, onCommandProcessed, onGoBack, groupId, groupName, startRecording, selectMedia }) => {
   const [recordingState, setRecordingState] = useState<RecordingState>(RecordingState.IDLE);
   const [duration, setDuration] = useState(0);
   const [caption, setCaption] = useState('');
+  const [captionStyle, setCaptionStyle] = useState<Post['captionStyle']>({
+      fontFamily: 'Sans',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+  });
   
   const [imagePrompt, setImagePrompt] = useState('');
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
@@ -209,6 +216,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onPostCreated
             author: user,
             duration: hasAudio ? duration : 0,
             caption: caption,
+            captionStyle: captionStyle,
             status: groupId ? 'pending' : 'approved',
         };
         
@@ -249,7 +257,7 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onPostCreated
         setIsPosting(false);
         setRecordingState(RecordingState.IDLE);
     }
-  }, [isPosting, caption, duration, user, onSetTtsMessage, onPostCreated, onGoBack, generatedImageUrl, imagePrompt, groupId, groupName, showPollCreator, pollQuestion, pollOptions, mediaFile, audioUrl, recordingState, language]);
+  }, [isPosting, caption, captionStyle, duration, user, onSetTtsMessage, onPostCreated, onGoBack, generatedImageUrl, imagePrompt, groupId, groupName, showPollCreator, pollQuestion, pollOptions, mediaFile, audioUrl, recordingState, language]);
   
   const handlePollOptionChange = (index: number, value: string) => {
     const newOptions = [...pollOptions];
@@ -327,6 +335,20 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onPostCreated
 
   const canAffordImage = (user.voiceCoins || 0) >= IMAGE_GENERATION_COST;
   const hasContent = caption.trim() || audioUrl || mediaFile || generatedImageUrl || (showPollCreator && pollQuestion.trim());
+  
+  const cycleFont = () => {
+    const currentIndex = REEL_TEXT_FONTS.findIndex(f => f.name === captionStyle.fontFamily);
+    const nextIndex = (currentIndex + 1) % REEL_TEXT_FONTS.length;
+    setCaptionStyle(s => ({ ...s, fontFamily: REEL_TEXT_FONTS[nextIndex].name }));
+  };
+  const toggleBold = () => setCaptionStyle(s => ({ ...s, fontWeight: s.fontWeight === 'bold' ? 'normal' : 'bold' }));
+  const toggleItalic = () => setCaptionStyle(s => ({ ...s, fontStyle: s.fontStyle === 'italic' ? 'normal' : 'italic' }));
+
+  const font = REEL_TEXT_FONTS.find(f => f.name === captionStyle.fontFamily);
+  const fontClass = font ? font.class : 'font-sans';
+  const fontWeightClass = captionStyle.fontWeight === 'bold' ? 'font-bold' : '';
+  const fontStyleClass = captionStyle.fontStyle === 'italic' ? 'italic' : '';
+
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-center text-slate-100 p-4 sm:p-8">
@@ -341,14 +363,29 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ user, onPostCreated
         <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
         <div className="flex items-start gap-4">
-             <img src={user.avatarUrl} alt={user.name} className="w-12 h-12 rounded-full mt-2" />
-             <textarea
-                value={caption}
-                onChange={e => setCaption(e.target.value)}
-                placeholder={`What's on your mind, ${user.name.split(' ')[0]}?`}
-                className="flex-grow bg-transparent text-slate-100 text-lg rounded-lg focus:ring-0 focus:outline-none min-h-[100px] resize-none"
-                rows={3}
-             />
+             <img src={user.avatarUrl} alt={user.name} className="w-12 h-12 rounded-full" />
+             <div className="flex-grow bg-slate-700/50 rounded-lg">
+                <div className="flex gap-2 items-center border-b border-slate-700 p-2">
+                    <button onClick={cycleFont} className="p-2 bg-slate-800 rounded-md font-semibold text-xs text-white">{captionStyle.fontFamily}</button>
+                    <button onClick={toggleBold} className={`p-2 w-8 h-8 rounded-md font-bold text-xs ${captionStyle.fontWeight === 'bold' ? 'bg-lime-500 text-black' : 'bg-slate-800 text-white'}`}>B</button>
+                    <button onClick={toggleItalic} className={`p-2 w-8 h-8 rounded-md italic text-xs ${captionStyle.fontStyle === 'italic' ? 'bg-lime-500 text-black' : 'bg-slate-800 text-white'}`}>I</button>
+                    <div className="flex-grow" />
+                    <div className="flex gap-1">
+                        {EMOJIS.map(emoji => (
+                            <button key={emoji} onClick={() => setCaption(t => t + emoji)} className="text-xl p-1 rounded-md hover:bg-slate-700/50 transition-transform hover:scale-110">
+                                {emoji}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <textarea
+                    value={caption}
+                    onChange={e => setCaption(e.target.value)}
+                    placeholder={`What's on your mind, ${user.name.split(' ')[0]}?`}
+                    className={`w-full bg-transparent text-slate-100 rounded-b-lg p-3 focus:outline-none resize-none min-h-[80px] text-lg ${fontClass} ${fontWeightClass} ${fontStyleClass}`}
+                    rows={3}
+                />
+             </div>
         </div>
         
         {/* --- PREVIEW AREA --- */}
