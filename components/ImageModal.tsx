@@ -1,7 +1,6 @@
 
 
-
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Post, User, Comment } from '../types';
 import Icon from './Icon';
 import CommentCard from './CommentCard';
@@ -27,6 +26,8 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
   const [newCommentText, setNewCommentText] = useState('');
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [isReactionModalOpen, setIsReactionModalOpen] = useState(false);
+  const [isPickerOpen, setPickerOpen] = useState(false);
+  const pickerTimeout = useRef<number | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -53,9 +54,31 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
     e.preventDefault();
     if (!post || !newCommentText.trim() || isPostingComment) return;
     setIsPostingComment(true);
-    await onPostComment(post.id, newCommentText);
-    setNewCommentText('');
-    setIsPostingComment(false);
+    try {
+        await onPostComment(post.id, newCommentText);
+        setNewCommentText('');
+    } catch (error) {
+        console.error("Failed to post comment:", error);
+    } finally {
+        setIsPostingComment(false);
+    }
+  };
+  
+  const handleMouseEnterPicker = () => {
+    if (pickerTimeout.current) clearTimeout(pickerTimeout.current);
+    setPickerOpen(true);
+  };
+
+  const handleMouseLeavePicker = () => {
+    pickerTimeout.current = window.setTimeout(() => {
+        setPickerOpen(false);
+    }, 300);
+  };
+
+  const handleReaction = (e: React.MouseEvent, emoji: string) => {
+      e.stopPropagation();
+      if (post) onReactToPost(post.id, emoji);
+      setPickerOpen(false);
   };
 
   const myReaction = useMemo(() => {
@@ -141,10 +164,21 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
           </div>
           
            <div className="flex items-center text-lime-400 gap-1 p-2 border-b border-slate-700">
-              <button onClick={() => onReactToPost(post.id, myReaction || '👍')} className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200 ${myReaction ? 'text-lime-400 font-bold' : 'text-lime-400/80'}`}>
-                <Icon name="like" className="w-6 h-6" />
-                <span className="font-semibold text-base">React</span>
-              </button>
+                <div onMouseEnter={handleMouseEnterPicker} onMouseLeave={handleMouseLeavePicker} className="relative flex-1">
+                    {isPickerOpen && (
+                        <div onMouseEnter={handleMouseEnterPicker} onMouseLeave={handleMouseLeavePicker} className="absolute bottom-full mb-2 bg-slate-900/90 backdrop-blur-sm border border-lime-500/20 rounded-full p-1.5 flex items-center gap-1 shadow-lg animate-fade-in-fast">
+                            {REACTIONS.map(emoji => (
+                                <button key={emoji} onClick={(e) => handleReaction(e, emoji)} className="text-3xl p-1 rounded-full hover:bg-slate-700/50 transition-transform hover:scale-125">
+                                    {emoji}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    <button onClick={(e) => handleReaction(e, myReaction || '👍')} className={`w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200 ${myReaction ? 'text-lime-400 font-bold' : 'text-lime-400/80'}`}>
+                        {myReaction ? <span className="text-xl">{myReaction}</span> : <Icon name="like" className="w-6 h-6" />}
+                        <span className="font-semibold text-base">React</span>
+                    </button>
+                </div>
                <button className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200 text-lime-400/80">
                 <Icon name="comment" className="w-6 h-6" />
                 <span className="font-semibold text-base">Comment</span>
@@ -165,7 +199,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
                         isPlaying={playingCommentId === comment.id}
                         onPlayPause={() => handlePlayComment(comment)}
                         onAuthorClick={onOpenProfile}
-                        onReply={() => {}} // Reply from here could be complex, maybe use onStartComment
+                        onReply={() => setNewCommentText(prev => `${prev}@${comment.author.username} `)}
                         onReact={(commentId, emoji) => onReactToComment(post.id, commentId, emoji)}
                     />
                 ))

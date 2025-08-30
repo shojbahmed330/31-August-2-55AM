@@ -150,7 +150,7 @@ export interface Comment {
     duration?: number;
     text?: string;
     imageUrl?: string;
-    reactions?: { [userId: string]: string }; // Map of userId to emoji string
+    reactions?: { [userId: string]: string };
 }
 
 export interface ReplyInfo {

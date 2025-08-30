@@ -338,7 +338,6 @@ export const firebaseService = {
         });
     },
 
-    // FIX: Add a listener for a single post.
     listenToPost(postId: string, callback: (post: Post | null) => void): () => void {
         const postRef = db.collection('posts').doc(postId);
         return postRef.onSnapshot((doc) => {
@@ -464,7 +463,6 @@ export const firebaseService = {
         }
     },
 
-    // FIX: Add reactToComment function
     async reactToComment(postId: string, commentId: string, userId: string, newReaction: string): Promise<boolean> {
         const postRef = db.collection('posts').doc(postId);
         try {
@@ -490,8 +488,7 @@ export const firebaseService = {
                     reactions[userId] = newReaction;
                 }
                 
-                // Update the comment with new reactions
-                comments[commentIndex] = { ...comment, reactions };
+                comments[commentIndex].reactions = reactions;
     
                 transaction.update(postRef, { comments });
             });
@@ -516,7 +513,7 @@ export const firebaseService = {
             author: {
                 id: user.id, name: user.name, username: user.username, avatarUrl: user.avatarUrl,
             },
-            createdAt: serverTimestamp(), // Use server timestamp directly
+            createdAt: Timestamp.now(),
             reactions: {},
         };
     
@@ -541,7 +538,6 @@ export const firebaseService = {
             commentCount: increment(1),
         });
         
-        // Return a client-side version for immediate UI update if needed, though listener is preferred
         return {
             ...newComment,
             createdAt: new Date().toISOString()

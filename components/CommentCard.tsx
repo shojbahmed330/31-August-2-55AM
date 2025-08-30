@@ -28,7 +28,19 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
       if (isNaN(date.getTime())) {
           return 'Just now';
       }
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      
+      const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+      let interval = seconds / 31536000;
+      if (interval > 1) return `${Math.floor(interval)}y`;
+      interval = seconds / 2592000;
+      if (interval > 1) return `${Math.floor(interval)}mo`;
+      interval = seconds / 86400;
+      if (interval > 1) return `${Math.floor(interval)}d`;
+      interval = seconds / 3600;
+      if (interval > 1) return `${Math.floor(interval)}h`;
+      interval = seconds / 60;
+      if (interval > 1) return `${Math.floor(interval)}m`;
+      return 'Just now';
   }, [comment.createdAt]);
 
 
@@ -106,7 +118,7 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
   };
   
   return (
-    <div className="bg-slate-700/50 rounded-lg p-3 flex gap-3 items-start">
+    <div className="bg-slate-700/50 rounded-lg p-3 flex gap-3 items-start relative">
         <button onClick={() => onAuthorClick(comment.author.username)} className="flex-shrink-0 group">
             <img src={comment.author.avatarUrl} alt={comment.author.name} className="w-10 h-10 rounded-full transition-all group-hover:ring-2 group-hover:ring-sky-400" />
         </button>
@@ -118,7 +130,7 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
             
             {reactionCount > 0 && (
                 <div className="absolute -bottom-2 right-2 bg-slate-800 rounded-full px-2 py-0.5 text-xs flex items-center gap-1 border border-slate-600">
-                    <span>{Object.keys(comment.reactions || {})[0]}</span>
+                    <span>{Object.values(comment.reactions || {})[0]}</span>
                     <span>{reactionCount}</span>
                 </div>
             )}
@@ -142,7 +154,7 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlayi
                         </div>
                     )}
                     <button onClick={(e) => handleReact(e, myReaction || '👍')} className={`font-semibold hover:underline ${myReaction ? 'text-lime-400' : ''}`}>
-                      {myReaction ? 'Reacted' : 'React'}
+                      {myReaction ? myReaction : 'React'}
                     </button>
                 </div>
                 <span className="text-slate-500">•</span>
