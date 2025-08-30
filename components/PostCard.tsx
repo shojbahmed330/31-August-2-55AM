@@ -1,5 +1,4 @@
 
-
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import type { Post, User, Comment, GroupRole } from '../types';
 import Icon from './Icon';
@@ -22,6 +21,7 @@ interface PostCardProps {
   onSharePost?: (post: Post) => void;
   onAdClick?: (post: Post) => void;
   onDeletePost?: (postId: string) => void;
+  onViewImage?: (imageUrl: string) => void;
   groupRole?: GroupRole;
   isGroupAdmin?: boolean;
   isPinned?: boolean;
@@ -40,7 +40,7 @@ const REACTION_COLORS: { [key: string]: string } = {
     '😡': 'text-orange-500',
 };
 
-export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive, isPlaying, onPlayPause, onReact, onViewPost, onAuthorClick, onStartComment, onSharePost, onAdClick, onDeletePost, groupRole, isGroupAdmin, isPinned, onPinPost, onUnpinPost, onVote }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive, isPlaying, onPlayPause, onReact, onViewPost, onAuthorClick, onStartComment, onSharePost, onAdClick, onDeletePost, onViewImage, groupRole, isGroupAdmin, isPinned, onPinPost, onUnpinPost, onVote }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isMenuOpen, setMenuOpen] = useState(false);
@@ -209,9 +209,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
     if (post.postType === 'profile_picture_change' && post.newPhotoUrl) {
         return (
              <div className="mb-4 flex justify-center">
-                <div className='w-48 h-48 rounded-full overflow-hidden bg-slate-800'>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onViewImage?.(post.newPhotoUrl!);
+                    }}
+                    className='w-48 h-48 rounded-full overflow-hidden bg-slate-800'
+                    aria-label="View image full screen"
+                >
                      <img src={post.newPhotoUrl} alt="Updated profile" className="w-full h-full object-cover" />
-                </div>
+                </button>
             </div>
         );
     }
@@ -219,7 +226,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
     if (post.postType === 'cover_photo_change' && post.newPhotoUrl) {
         return (
              <div className="rounded-lg overflow-hidden aspect-video bg-slate-800 mb-4">
-                <img src={post.newPhotoUrl} alt="Updated cover" className="w-full h-full object-cover" />
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onViewImage?.(post.newPhotoUrl!);
+                    }}
+                    className="w-full h-full block"
+                    aria-label="View image full screen"
+                >
+                    <img src={post.newPhotoUrl} alt="Updated cover" className="w-full h-full object-cover" />
+                </button>
             </div>
         );
     }
@@ -242,7 +258,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
     if (post.imageUrl) {
       return (
         <div className="rounded-lg overflow-hidden bg-black -mx-6 mb-4">
-            <img src={post.imageUrl} alt={post.imagePrompt || 'Post image'} className="w-full h-auto object-contain" />
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onViewImage?.(post.imageUrl!);
+                }}
+                className="w-full h-auto block"
+                aria-label="View image full screen"
+            >
+                <img src={post.imageUrl} alt={post.imagePrompt || 'Post image'} className="w-full h-auto object-contain" />
+            </button>
         </div>
       );
     }

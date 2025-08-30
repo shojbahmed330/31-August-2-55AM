@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Post, FriendshipStatus, ScrollState, AppView } from '../types';
 import { PostCard } from './PostCard';
@@ -23,6 +24,7 @@ interface ProfileScreenProps {
   onCurrentUserUpdate: (updatedUser: User) => void;
   onPostCreated: (newPost: Post) => void;
   onSharePost: (post: Post) => void;
+  onViewImage: (imageUrl: string) => void;
   
   onCommandProcessed: () => void;
   scrollState: ScrollState;
@@ -45,7 +47,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     onEditProfile, onViewPost, onOpenProfile, onReactToPost, onBlockUser, scrollState,
     onCommandProcessed, onSetScrollState, onNavigate, onGoBack,
     onCurrentUserUpdate, onPostCreated,
-    onStartComment, onSharePost
+    onStartComment, onSharePost, onViewImage
 }) => {
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -494,6 +496,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
                                     onAuthorClick={onOpenProfile}
                                     onStartComment={onStartComment}
                                     onSharePost={onSharePost}
+                                    onViewImage={onViewImage}
                                 />
                             </div>
                         )) : (

@@ -18,12 +18,13 @@ interface PostDetailScreenProps {
   onReactToPost: (postId: string, emoji: string) => void;
   onOpenProfile: (userName: string) => void;
   onSharePost: (post: Post) => void;
+  onViewImage: (imageUrl: string) => void;
   scrollState: ScrollState;
   onCommandProcessed: () => void;
   onGoBack: () => void;
 }
 
-const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedCommentId, currentUser, onSetTtsMessage, lastCommand, onStartComment, onReactToPost, onOpenProfile, onSharePost, scrollState, onCommandProcessed, onGoBack }) => {
+const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedCommentId, currentUser, onSetTtsMessage, lastCommand, onStartComment, onReactToPost, onOpenProfile, onSharePost, onViewImage, scrollState, onCommandProcessed, onGoBack }) => {
   const [post, setPost] = useState<Post | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [playingCommentId, setPlayingCommentId] = useState<string | null>(null);
@@ -203,6 +204,7 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
           onAuthorClick={onOpenProfile}
           onStartComment={onStartComment}
           onSharePost={onSharePost}
+          onViewImage={onViewImage}
         />
 
         <div className="bg-slate-800/50 rounded-xl p-4">

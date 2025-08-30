@@ -44,6 +44,7 @@ import GroupInviteScreen from './components/GroupInviteScreen';
 import ContactsPanel from './components/ContactsPanel';
 import ShareModal from './components/ShareModal';
 import LeadFormModal from './components/LeadFormModal';
+import ImageModal from './components/ImageModal';
 import { useSettings } from './contexts/SettingsContext';
 
 
@@ -165,6 +166,7 @@ const UserApp: React.FC = () => {
   const [initialDeepLink, setInitialDeepLink] = useState<ViewState | null>(null);
   const [shareModalPost, setShareModalPost] = useState<Post | null>(null);
   const [leadFormPost, setLeadFormPost] = useState<Post | null>(null);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
   const { language } = useSettings();
   
   const notificationPanelRef = useRef<HTMLDivElement>(null);
@@ -610,6 +612,9 @@ const UserApp: React.FC = () => {
     }
   };
 
+  const handleViewImage = (imageUrl: string) => setViewingImage(imageUrl);
+  const handleCloseImage = () => setViewingImage(null);
+
 
   const handleOpenProfile = (username: string) => navigate(AppView.PROFILE, { username });
   const handleViewPost = (postId: string) => navigate(AppView.POST_DETAILS, { postId });
@@ -707,6 +712,7 @@ const UserApp: React.FC = () => {
       onOpenProfile: handleOpenProfile,
       onStartComment: handleStartComment,
       onSharePost: handleSharePost,
+      onViewImage: handleViewImage,
     };
 
     switch (currentView.view) {
@@ -1018,6 +1024,10 @@ const UserApp: React.FC = () => {
             onClose={() => setLeadFormPost(null)}
             onSubmit={handleLeadSubmit}
         />
+      )}
+
+      {viewingImage && (
+        <ImageModal imageUrl={viewingImage} onClose={handleCloseImage} />
       )}
     </div>
   );
