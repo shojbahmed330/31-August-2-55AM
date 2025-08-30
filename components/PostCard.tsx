@@ -21,7 +21,7 @@ interface PostCardProps {
   onSharePost?: (post: Post) => void;
   onAdClick?: (post: Post) => void;
   onDeletePost?: (postId: string) => void;
-  onViewImage?: (imageUrl: string) => void;
+  onOpenPhotoViewer?: (post: Post) => void;
   groupRole?: GroupRole;
   isGroupAdmin?: boolean;
   isPinned?: boolean;
@@ -40,7 +40,7 @@ const REACTION_COLORS: { [key: string]: string } = {
     '😡': 'text-orange-500',
 };
 
-export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive, isPlaying, onPlayPause, onReact, onViewPost, onAuthorClick, onStartComment, onSharePost, onAdClick, onDeletePost, onViewImage, groupRole, isGroupAdmin, isPinned, onPinPost, onUnpinPost, onVote }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive, isPlaying, onPlayPause, onReact, onViewPost, onAuthorClick, onStartComment, onSharePost, onAdClick, onDeletePost, onOpenPhotoViewer, groupRole, isGroupAdmin, isPinned, onPinPost, onUnpinPost, onVote }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isMenuOpen, setMenuOpen] = useState(false);
@@ -212,7 +212,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
-                        onViewImage?.(post.newPhotoUrl!);
+                        onOpenPhotoViewer?.(post);
                     }}
                     className='w-48 h-48 rounded-full overflow-hidden bg-slate-800'
                     aria-label="View image full screen"
@@ -229,7 +229,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
-                        onViewImage?.(post.newPhotoUrl!);
+                        onOpenPhotoViewer?.(post);
                     }}
                     className="w-full h-full block"
                     aria-label="View image full screen"
@@ -261,7 +261,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive,
             <button
                 onClick={(e) => {
                     e.stopPropagation();
-                    onViewImage?.(post.imageUrl!);
+                    onOpenPhotoViewer?.(post);
                 }}
                 className="w-full h-auto block"
                 aria-label="View image full screen"

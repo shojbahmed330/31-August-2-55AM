@@ -166,7 +166,8 @@ const UserApp: React.FC = () => {
   const [initialDeepLink, setInitialDeepLink] = useState<ViewState | null>(null);
   const [shareModalPost, setShareModalPost] = useState<Post | null>(null);
   const [leadFormPost, setLeadFormPost] = useState<Post | null>(null);
-  const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const [viewerPost, setViewerPost] = useState<Post | null>(null);
+  const [isLoadingViewerPost, setIsLoadingViewerPost] = useState(false);
   const { language } = useSettings();
   
   const notificationPanelRef = useRef<HTMLDivElement>(null);
@@ -612,8 +613,20 @@ const UserApp: React.FC = () => {
     }
   };
 
-  const handleViewImage = (imageUrl: string) => setViewingImage(imageUrl);
-  const handleCloseImage = () => setViewingImage(null);
+  const handleOpenPhotoViewer = async (post: Post) => {
+    if (!post.imageUrl && !post.newPhotoUrl) return;
+    setIsLoadingViewerPost(true);
+    setViewerPost(null); // Clear previous post
+    const fullPost = await firebaseService.getPostById(post.id);
+    if (fullPost) {
+        setViewerPost(fullPost);
+    } else {
+        setTtsMessage("Could not load post details.");
+    }
+    setIsLoadingViewerPost(false);
+  };
+
+  const handleClosePhotoViewer = () => setViewerPost(null);
 
 
   const handleOpenProfile = (username: string) => navigate(AppView.PROFILE, { username });
@@ -624,6 +637,7 @@ const UserApp: React.FC = () => {
         setTtsMessage(getTtsPrompt('comment_suspended', language));
         return;
     }
+    setViewerPost(null); // Close photo viewer if open before navigating
     navigate(AppView.CREATE_COMMENT, { postId });
   }
   const handleOpenConversation = async (peer: User) => {
@@ -712,7 +726,7 @@ const UserApp: React.FC = () => {
       onOpenProfile: handleOpenProfile,
       onStartComment: handleStartComment,
       onSharePost: handleSharePost,
-      onViewImage: handleViewImage,
+      onOpenPhotoViewer: handleOpenPhotoViewer,
     };
 
     switch (currentView.view) {
@@ -1026,8 +1040,17 @@ const UserApp: React.FC = () => {
         />
       )}
 
-      {viewingImage && (
-        <ImageModal imageUrl={viewingImage} onClose={handleCloseImage} />
+      {(viewerPost || isLoadingViewerPost) && user && (
+        <ImageModal 
+            post={viewerPost}
+            isLoading={isLoadingViewerPost}
+            currentUser={user}
+            onClose={handleClosePhotoViewer} 
+            onReactToPost={handleReactToPost}
+            onStartComment={handleStartComment}
+            onOpenProfile={handleOpenProfile}
+            onSharePost={handleSharePost}
+        />
       )}
     </div>
   );
