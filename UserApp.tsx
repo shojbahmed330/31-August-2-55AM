@@ -655,34 +655,28 @@ const UserApp: React.FC = () => {
         viewerPostUnsubscribe.current = null;
     }
     
-    // Ad posts are client-side only and don't have a Firestore listener.
-    if (post.isSponsored || post.id.startsWith('ad_')) {
-        setViewerPost(post);
-        setIsLoadingViewerPost(false);
-        return;
-    }
-    
-    // For all other posts, assume they are in Firestore.
-    // Show a loading state and clear any old post data.
-    setIsLoadingViewerPost(true);
-    setViewerPost(null); // Explicitly clear to ensure the loading spinner is shown.
-    
-    const unsubscribe = firebaseService.listenToPost(post.id, (updatedPost) => {
-        if (updatedPost) {
-            // Found the post, display it.
-            setViewerPost(updatedPost);
-        } else {
-            // The post was not found or has been deleted from Firestore.
-            setTtsMessage("Post not found or has been deleted.");
-            // This closes the modal by setting the post to null.
-            handleClosePhotoViewer();
-        }
-        // Whether we found it or not, loading is finished.
-        setIsLoadingViewerPost(false);
-    });
-    viewerPostUnsubscribe.current = unsubscribe;
-  };
+    // Set the post immediately so the modal can open with the existing, potentially stale, data.
+    // This prevents passing null and causing a crash.
+    setViewerPost(post);
+    setIsLoadingViewerPost(false); // We are not in a loading state initially because we have data to show.
 
+    // For non-ad posts that exist in Firestore, set up a listener to get real-time updates.
+    if (!post.isSponsored && !post.id.startsWith('ad_')) {
+        const unsubscribe = firebaseService.listenToPost(post.id, (updatedPost) => {
+            if (updatedPost) {
+                // A live update came in. Update the state to reflect it.
+                setViewerPost(updatedPost);
+            } else {
+                // The post was deleted from the backend while the user was viewing it.
+                // FIX: Corrected function call from onSetTtsMessage to setTtsMessage
+                setTtsMessage("This post is no longer available.");
+                handleClosePhotoViewer(); // This will close the modal gracefully.
+            }
+        });
+        // Store the unsubscribe function to be called when the modal is closed.
+        viewerPostUnsubscribe.current = unsubscribe;
+    }
+  };
 
   const handleOpenProfile = (username: string) => navigate(AppView.PROFILE, { username });
   const handleViewPost = (postId: string) => navigate(AppView.POST_DETAILS, { postId });
