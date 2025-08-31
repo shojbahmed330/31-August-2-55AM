@@ -66,11 +66,16 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
     const comments = [...post.comments].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
     const commentsById = new Map<string, Comment & { replies: Comment[] }>();
-    comments.forEach(c => commentsById.set(c.id, { ...c, replies: [] }));
+    comments.forEach(c => {
+        if (c) { // Guard against null/undefined entries
+            commentsById.set(c.id, { ...c, replies: [] });
+        }
+    });
 
     const topLevelComments: (Comment & { replies: Comment[] })[] = [];
     
     comments.forEach(c => {
+        if (!c) return; // Skip null/undefined entries
         if (c.parentId && commentsById.has(c.parentId)) {
             commentsById.get(c.parentId)?.replies.push(c);
         } else {
@@ -239,7 +244,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
           </div>
 
           <div className="flex-grow overflow-y-auto p-4 space-y-3">
-             {commentThreads.length > 0 ? commentThreads.map(comment => (
+             {commentThreads.length > 0 ? commentThreads.filter(Boolean).map(comment => (
                 <div key={comment.id} className="flex flex-col gap-3">
                     <CommentCard 
                         comment={comment}
@@ -254,7 +259,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
                     />
                      {comment.replies.length > 0 && (
                         <div className="ml-6 pl-4 border-l-2 border-slate-700 space-y-3">
-                            {comment.replies.map(reply => (
+                            {comment.replies.filter(Boolean).map(reply => (
                                 <CommentCard 
                                     key={reply.id}
                                     comment={reply}
