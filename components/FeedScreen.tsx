@@ -387,7 +387,7 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
         />
         <div className="w-full border-t border-lime-500/20" />
         <RewardedAdWidget campaign={rewardedCampaign} onAdClick={onRewardedAdClick} />
-        {posts.map((post, index) => (
+        {posts.filter(Boolean).map((post, index) => (
             <div 
                 key={`${post.id}-${index}`} 
                 className="w-full"

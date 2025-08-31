@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Post, FriendshipStatus, ScrollState, AppView, Comment } from '../types';
 import { PostCard } from './PostCard';
@@ -479,7 +480,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     </aside>
 
                     <main id="post-list-container" className="md:col-span-7 flex flex-col gap-8">
-                         {posts.length > 0 ? posts.map((post, index) => (
+                         {posts.length > 0 ? posts.filter(Boolean).map((post, index) => (
                             <div key={post.id} className="w-full snap-center">
                                 <PostCard 
                                     post={post} 

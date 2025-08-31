@@ -106,7 +106,7 @@ const ReelsScreen: React.FC<ReelsScreenProps> = ({
               <Icon name="video-camera" className="w-7 h-7" />
             </button>
         </div>
-      {posts.map((post) => (
+      {posts.filter(Boolean).map((post) => (
         <div
           key={post.id}
           className="h-full w-full snap-start flex items-center justify-center relative"
