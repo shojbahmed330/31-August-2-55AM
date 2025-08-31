@@ -24,6 +24,12 @@ interface CommentCardProps {
 const AVAILABLE_REACTIONS = ['❤️', '😂', '👍', '😢', '😡', '🔥', '😮'];
 
 const CommentCard: React.FC<CommentCardProps> = ({ comment, currentUser, isPlaying, onPlayPause, onAuthorClick, onReply, onReact, onEdit, onDelete }) => {
+  // Final Fix: If the comment object or its author is null, return nothing.
+  // This prevents any attempt to access properties of a null object, stopping the crash.
+  if (!comment || !comment.author) {
+    return null;
+  }
+  
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPickerOpen, setPickerOpen] = useState(false);
   const pickerContainerRef = useRef<HTMLDivElement>(null);
