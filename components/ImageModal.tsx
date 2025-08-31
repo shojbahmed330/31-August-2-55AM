@@ -141,7 +141,15 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
     );
   }
 
-  if (!post || !post.author) {
+  // If loading is false, but the post is null (e.g., deleted or not found),
+  // we return null to prevent a crash. The parent component is responsible
+  // for fully closing/unmounting.
+  if (!post) {
+      return null;
+  }
+  
+  // As a further safeguard, if the post is missing critical data, close.
+  if (!post.author) {
     onClose();
     return null;
   }
@@ -301,7 +309,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
                         value={newCommentText}
                         onChange={(e) => setNewCommentText(e.target.value)}
                         placeholder="Write a comment..."
-                        className="flex-grow bg-slate-800 border border-slate-700 text-slate-100 rounded-full py-2 px-4 focus:ring-lime-500 focus:border-lime-500"
+                        className="flex-grow bg-slate-800 border border-slate-700 text-slate-100 rounded-full py-2.5 px-4 focus:ring-lime-500 focus:border-lime-500"
                     />
                     <button
                         type="submit"

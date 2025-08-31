@@ -655,27 +655,34 @@ const UserApp: React.FC = () => {
         viewerPostUnsubscribe.current = null;
     }
     
-    setViewerPost(post); 
-    
-    // Ad posts are client-side only and don't have a document to listen to.
-    if (post.id.startsWith('ad_')) {
+    // Ad posts are client-side only and don't have a Firestore listener.
+    if (post.isSponsored || post.id.startsWith('ad_')) {
+        setViewerPost(post);
         setIsLoadingViewerPost(false);
         return;
     }
     
+    // For all other posts, assume they are in Firestore.
+    // Show a loading state and clear any old post data.
     setIsLoadingViewerPost(true);
+    setViewerPost(null); // Explicitly clear to ensure the loading spinner is shown.
     
     const unsubscribe = firebaseService.listenToPost(post.id, (updatedPost) => {
         if (updatedPost) {
+            // Found the post, display it.
             setViewerPost(updatedPost);
         } else {
+            // The post was not found or has been deleted from Firestore.
             setTtsMessage("Post not found or has been deleted.");
+            // This closes the modal by setting the post to null.
             handleClosePhotoViewer();
         }
+        // Whether we found it or not, loading is finished.
         setIsLoadingViewerPost(false);
     });
     viewerPostUnsubscribe.current = unsubscribe;
   };
+
 
   const handleOpenProfile = (username: string) => navigate(AppView.PROFILE, { username });
   const handleViewPost = (postId: string) => navigate(AppView.POST_DETAILS, { postId });
