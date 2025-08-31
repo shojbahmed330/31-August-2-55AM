@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { Post, User, Comment, ScrollState } from '../types';
 import { PostCard } from './PostCard';
@@ -94,7 +92,7 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
   const commentThreads = useMemo(() => {
     if (!post?.comments) return [];
 
-    const comments = [...post.comments].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const comments = [...post.comments].filter(Boolean).sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
     const commentsById = new Map<string, Comment & { replies: Comment[] }>();
     comments.forEach(c => commentsById.set(c.id, { ...c, replies: [] }));
@@ -102,11 +100,13 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
     const topLevelComments: (Comment & { replies: Comment[] })[] = [];
     
     comments.forEach(c => {
+        const commentWithReplies = commentsById.get(c.id);
+        if (!commentWithReplies) return;
+
         if (c.parentId && commentsById.has(c.parentId)) {
-            commentsById.get(c.parentId)?.replies.push(c);
+            commentsById.get(c.parentId)?.replies.push(commentWithReplies);
         } else {
-            const topLevel = commentsById.get(c.id);
-            if(topLevel) topLevelComments.push(topLevel);
+            topLevelComments.push(commentWithReplies);
         }
     });
 
@@ -204,7 +204,7 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
         <div className="bg-slate-800/50 rounded-xl p-4">
              <h3 className="text-lg font-bold text-slate-200 mb-4">Comments ({post.commentCount})</h3>
              <div className="flex flex-col gap-4">
-                {commentThreads.length > 0 ? commentThreads.map(comment => (
+                {commentThreads.length > 0 ? commentThreads.filter(Boolean).map(comment => (
                     <div key={comment.id} className="flex flex-col gap-3">
                         <div ref={comment.id === newlyAddedCommentId ? newCommentRef : null}>
                             <CommentCard 
@@ -222,7 +222,7 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ postId, newlyAddedC
                         </div>
                         {comment.replies.length > 0 && (
                             <div className="ml-6 pl-4 border-l-2 border-slate-700 space-y-3">
-                                {comment.replies.map(reply => (
+                                {comment.replies.filter(Boolean).map(reply => (
                                      <div key={reply.id} ref={reply.id === newlyAddedCommentId ? newCommentRef : null}>
                                         <CommentCard 
                                             comment={reply}

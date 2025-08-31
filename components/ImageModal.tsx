@@ -23,9 +23,9 @@ const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
 const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, onClose, onReactToPost, onReactToComment, onPostComment, onEditComment, onDeleteComment, onOpenProfile, onSharePost }) => {
   // FINAL FIX: This is the most robust way to prevent the crash.
-  // If the post data is null for any reason (e.g., it was deleted, or the modal is closing),
+  // If the post data is null, OR if the author field is missing (e.g. user was deleted),
   // we render nothing. This completely avoids any attempt to access properties of a null object.
-  if (!post) {
+  if (!post || !post.author) {
     return null;
   }
   
@@ -63,24 +63,21 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
   const commentThreads = useMemo(() => {
     if (!post.comments) return [];
     
-    const comments = [...post.comments].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const comments = [...post.comments].filter(Boolean).sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
     const commentsById = new Map<string, Comment & { replies: Comment[] }>();
-    comments.forEach(c => {
-        if (c) { // Guard against null/undefined entries
-            commentsById.set(c.id, { ...c, replies: [] });
-        }
-    });
+    comments.forEach(c => commentsById.set(c.id, { ...c, replies: [] }));
 
     const topLevelComments: (Comment & { replies: Comment[] })[] = [];
     
     comments.forEach(c => {
-        if (!c) return; // Skip null/undefined entries
+        const commentWithReplies = commentsById.get(c.id);
+        if (!commentWithReplies) return;
+
         if (c.parentId && commentsById.has(c.parentId)) {
-            commentsById.get(c.parentId)?.replies.push(c);
+            commentsById.get(c.parentId)?.replies.push(commentWithReplies);
         } else {
-            const topLevel = commentsById.get(c.id);
-            if(topLevel) topLevelComments.push(topLevel);
+            topLevelComments.push(commentWithReplies);
         }
     });
 
@@ -149,11 +146,6 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
             <Icon name="logo" className="w-16 h-16 text-lime-500 animate-spin" />
         </div>
     );
-  }
-  
-  if (!post.author) {
-    onClose();
-    return null;
   }
   
   const imageUrl = post.imageUrl || post.newPhotoUrl;
