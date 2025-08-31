@@ -1,9 +1,3 @@
-
-
-
-
-
-
 import React, { useRef, useEffect, useState } from 'react';
 import type { Post, User, Comment, GroupRole } from './types';
 import Icon from './components/Icon';
