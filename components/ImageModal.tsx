@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Post, User, Comment } from '../types';
 import Icon from './Icon';
@@ -132,18 +133,19 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
   }, [post?.reactions]);
 
+  if (isLoading) {
+    return (
+        <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center">
+            <Icon name="logo" className="w-16 h-16 text-lime-500 animate-spin" />
+        </div>
+    );
+  }
+
   if (!post || !post.author) {
-    if (isLoading) {
-        return (
-            <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center">
-                <Icon name="logo" className="w-16 h-16 text-lime-500 animate-spin" />
-            </div>
-        )
-    }
     onClose();
     return null;
   }
-
+  
   const imageUrl = post.imageUrl || post.newPhotoUrl;
   if (!imageUrl) {
     onClose();

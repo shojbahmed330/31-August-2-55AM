@@ -652,9 +652,17 @@ const UserApp: React.FC = () => {
 
     if (viewerPostUnsubscribe.current) {
         viewerPostUnsubscribe.current();
+        viewerPostUnsubscribe.current = null;
     }
     
     setViewerPost(post); 
+    
+    // Ad posts are client-side only and don't have a document to listen to.
+    if (post.id.startsWith('ad_')) {
+        setIsLoadingViewerPost(false);
+        return;
+    }
+    
     setIsLoadingViewerPost(true);
     
     const unsubscribe = firebaseService.listenToPost(post.id, (updatedPost) => {
