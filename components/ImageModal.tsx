@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Post, User, Comment } from '../types';
 import Icon from './Icon';
@@ -141,16 +140,10 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
     );
   }
 
-  // If loading is false, but the post is null (e.g., deleted or not found),
-  // we return null to prevent a crash. The parent component is responsible
-  // for fully closing/unmounting.
-  if (!post) {
-      return null;
-  }
-  
-  // As a further safeguard, if the post is missing critical data, close.
-  if (!post.author) {
-    onClose();
+  // THE FIX: If loading is finished, but the post is null (e.g., deleted, not found, or during
+  // a state transition before unmounting), we render nothing. This prevents the
+  // `TypeError: can't access property "author", P is null` crash.
+  if (!post || !post.author) {
     return null;
   }
   
