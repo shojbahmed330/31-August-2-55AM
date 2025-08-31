@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, ScrollState, FriendshipStatus, AppView } from '../types';
 import { geminiService } from '../services/geminiService';
@@ -198,7 +197,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, onSetTtsMess
 
     return (
         <div className="flex flex-col gap-4 p-4 bg-slate-900/50 rounded-b-lg border border-t-0 border-lime-500/20">
-            {userList.map(user => (
+            {userList.filter(Boolean).map(user => (
                 <UserCard key={user.id} user={user} onProfileClick={onOpenProfile}>
                     {activeTab === 'requests' && (
                         <>

@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import { Notification } from '../types';
 import Icon from './Icon';
@@ -26,6 +24,11 @@ const TimeAgo: React.FC<{ date: string }> = ({ date }) => {
 };
 
 const NotificationItem: React.FC<{ notification: Notification; onClick: () => void }> = ({ notification, onClick }) => {
+  if (!notification || !notification.user) {
+    // This is a safety net for corrupted data from Firestore, preventing a crash.
+    return null; 
+  }
+
   const getIcon = () => {
     switch (notification.type) {
       case 'like': return <Icon name="like" className="w-5 h-5 text-white fill-current" />;
@@ -116,7 +119,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ notifications, on
       </div>
       <div className="max-h-96 overflow-y-auto divide-y divide-slate-700/50">
         {notifications.length > 0 ? (
-          notifications.map(n => <NotificationItem key={n.id} notification={n} onClick={() => onNotificationClick(n)} />)
+          notifications.filter(Boolean).map(n => <NotificationItem key={n.id} notification={n} onClick={() => onNotificationClick(n)} />)
         ) : (
           <p className="p-8 text-center text-slate-400">You have no notifications yet.</p>
         )}

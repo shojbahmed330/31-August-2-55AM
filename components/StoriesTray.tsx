@@ -34,6 +34,10 @@ const StoryCard: React.FC<{
   storyGroup: { author: User; stories: Story[]; allViewed: boolean };
   onClick: () => void;
 }> = ({ storyGroup, onClick }) => {
+  if (!storyGroup || !storyGroup.author || !storyGroup.stories || storyGroup.stories.length === 0) {
+    return null;
+  }
+
   const { author, stories, allViewed } = storyGroup;
   const firstStory = stories[0];
   
@@ -65,7 +69,7 @@ const StoriesTray: React.FC<StoriesTrayProps> = ({ currentUser, storiesByAuthor,
     <div className="bg-slate-800 rounded-2xl p-3 w-full">
       <div className="flex items-center gap-3 overflow-x-auto pb-2 -mb-2 no-scrollbar">
         <CreateStoryCard user={currentUser} onClick={onCreateStory} />
-        {storiesByAuthor.map((group, index) => (
+        {storiesByAuthor.filter(Boolean).map((group, index) => (
           <StoryCard
             key={group.author.id}
             storyGroup={group}
