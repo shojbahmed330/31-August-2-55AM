@@ -193,7 +193,7 @@ const UserApp: React.FC = () => {
         viewerPostUnsubscribe.current = null;
     }
     setViewerPost(null);
-    setIsLoadingViewerPost(false); // Reset loading state
+    setIsLoadingViewerPost(false);
   }, []);
 
   useEffect(() => {
@@ -649,23 +649,22 @@ const UserApp: React.FC = () => {
 
   const handleOpenPhotoViewer = (post: Post) => {
     if (!post.imageUrl && !post.newPhotoUrl) return;
-    
-    handleClosePhotoViewer(); // Ensure any previous listener is cleaned up
 
-    // Immediately set the post from the feed to prevent null error
-    setViewerPost(post); 
-    setIsLoadingViewerPost(true); // Indicate that we are fetching fresh data
+    if (viewerPostUnsubscribe.current) {
+        viewerPostUnsubscribe.current();
+    }
     
-    // Use the new firebaseService.listenToPost method for live updates
+    setViewerPost(post); 
+    setIsLoadingViewerPost(true);
+    
     const unsubscribe = firebaseService.listenToPost(post.id, (updatedPost) => {
         if (updatedPost) {
             setViewerPost(updatedPost);
         } else {
-            // If the post is deleted while viewing, handle it gracefully
             setTtsMessage("Post not found or has been deleted.");
             handleClosePhotoViewer();
         }
-        setIsLoadingViewerPost(false); // Fresh data has arrived
+        setIsLoadingViewerPost(false);
     });
     viewerPostUnsubscribe.current = unsubscribe;
   };
@@ -1083,7 +1082,7 @@ const UserApp: React.FC = () => {
         />
       )}
 
-      {(viewerPost || isLoadingViewerPost) && user && (
+      {viewerPost && user && (
         <ImageModal 
             post={viewerPost}
             isLoading={isLoadingViewerPost}

@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Post, User, Comment } from '../types';
 import Icon from './Icon';
@@ -9,8 +8,8 @@ import ReactionListModal from './ReactionListModal';
 
 interface ImageModalProps {
   post: Post | null;
-  isLoading: boolean;
   currentUser: User;
+  isLoading: boolean;
   onClose: () => void;
   onReactToPost: (postId: string, emoji: string) => void;
   onReactToComment: (postId: string, commentId: string, emoji: string) => void;
@@ -23,7 +22,7 @@ interface ImageModalProps {
 
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
-const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, onClose, onReactToPost, onReactToComment, onPostComment, onEditComment, onDeleteComment, onOpenProfile, onSharePost }) => {
+const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, onClose, onReactToPost, onReactToComment, onPostComment, onEditComment, onDeleteComment, onOpenProfile, onSharePost }) => {
   const [playingCommentId, setPlayingCommentId] = useState<string | null>(null);
   const [newCommentText, setNewCommentText] = useState('');
   const [isPostingComment, setIsPostingComment] = useState(false);
@@ -133,7 +132,15 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
   }, [post?.reactions]);
 
-  if (!post) {
+  if (!post || !post.author) {
+    if (isLoading) {
+        return (
+            <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center">
+                <Icon name="logo" className="w-16 h-16 text-lime-500 animate-spin" />
+            </div>
+        )
+    }
+    onClose();
     return null;
   }
 
@@ -157,15 +164,20 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, isLoading, currentUser, o
         <Icon name="close" className="w-8 h-8" />
       </button>
       
-      <main className="flex-grow flex items-center justify-center p-4 md:p-8" onClick={(e) => e.stopPropagation()}>
+      <main className="flex-grow flex items-center justify-center p-4 md:p-8 relative" onClick={(e) => e.stopPropagation()}>
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+                <Icon name="logo" className="w-16 h-16 text-lime-500 animate-spin"/>
+            </div>
+          )}
           <img
             src={imageUrl}
             alt="Full screen view"
-            className="max-w-full max-h-full object-contain rounded-lg"
+            className={`max-w-full max-h-full object-contain rounded-lg transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}
           />
       </main>
 
-      <aside className="w-[380px] flex-shrink-0 bg-slate-900 border-l border-slate-700/50 flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <aside className={`w-[380px] flex-shrink-0 bg-slate-900 border-l border-slate-700/50 flex flex-col transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`} onClick={(e) => e.stopPropagation()}>
           <header className="p-4 border-b border-slate-700">
               <button onClick={() => onOpenProfile(post.author.username)} className="flex items-center gap-3 group">
                 <img src={post.author.avatarUrl} alt={post.author.name} className="w-12 h-12 rounded-full" />
