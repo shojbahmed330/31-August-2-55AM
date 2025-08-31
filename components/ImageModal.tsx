@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Post, User, Comment } from '../types';
 import Icon from './Icon';
@@ -23,6 +22,13 @@ interface ImageModalProps {
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
 const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, onClose, onReactToPost, onReactToComment, onPostComment, onEditComment, onDeleteComment, onOpenProfile, onSharePost }) => {
+  // FINAL FIX: This is the most robust way to prevent the crash.
+  // If the post data is null for any reason (e.g., it was deleted, or the modal is closing),
+  // we render nothing. This completely avoids any attempt to access properties of a null object.
+  if (!post) {
+    return null;
+  }
+  
   const [playingCommentId, setPlayingCommentId] = useState<string | null>(null);
   const [newCommentText, setNewCommentText] = useState('');
   const [isPostingComment, setIsPostingComment] = useState(false);
@@ -55,7 +61,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
   }, [replyingTo]);
   
   const commentThreads = useMemo(() => {
-    if (!post?.comments) return [];
+    if (!post.comments) return [];
     
     const comments = [...post.comments].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
@@ -74,7 +80,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
     });
 
     return topLevelComments;
-  }, [post?.comments]);
+  }, [post.comments]);
 
   const handlePlayComment = (comment: Comment) => {
     if (comment.type !== 'audio') return;
@@ -114,23 +120,23 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
   };
 
   const myReaction = useMemo(() => {
-    if (!currentUser || !post?.reactions) return null;
+    if (!currentUser || !post.reactions) return null;
     return post.reactions[currentUser.id] || null;
-  }, [currentUser, post?.reactions]);
+  }, [currentUser, post.reactions]);
 
   const reactionCount = useMemo(() => {
-    if (!post?.reactions) return 0;
+    if (!post.reactions) return 0;
     return Object.keys(post.reactions).length;
-  }, [post?.reactions]);
+  }, [post.reactions]);
 
   const topReactions = useMemo(() => {
-    if (!post?.reactions) return [];
+    if (!post.reactions) return [];
     const counts: { [key: string]: number } = {};
     Object.values(post.reactions).forEach(emoji => {
         counts[emoji] = (counts[emoji] || 0) + 1;
     });
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
-  }, [post?.reactions]);
+  }, [post.reactions]);
 
   if (isLoading) {
     return (
@@ -139,11 +145,9 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
         </div>
     );
   }
-
-  // THE FIX: If loading is finished, but the post is null (e.g., deleted, not found, or during
-  // a state transition before unmounting), we render nothing. This prevents the
-  // `TypeError: can't access property "author", P is null` crash.
-  if (!post || !post.author) {
+  
+  if (!post.author) {
+    onClose();
     return null;
   }
   
