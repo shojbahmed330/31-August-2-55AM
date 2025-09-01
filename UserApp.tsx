@@ -9,7 +9,8 @@ import ReelsScreen from './components/ReelsScreen';
 import CreatePostScreen from './components/CreatePostScreen';
 import CreateReelScreen from './components/CreateReelScreen';
 import CreateCommentScreen from './components/CreateCommentScreen';
-import ProfileScreen from './components/ProfileScreen';
+// Fix: Changed default import to named import for ProfileScreen.
+import { ProfileScreen } from './components/ProfileScreen';
 import SettingsScreen from './components/SettingsScreen';
 import MessageScreen from './components/MessageScreen';
 import PostDetailScreen from './components/PostDetailScreen';
@@ -409,6 +410,12 @@ const UserApp: React.FC = () => {
             break;
         case 'friend_request':
             navigate(AppView.FRIENDS, { initialTab: 'requests' });
+            break;
+        case 'friend_request_approved':
+            if (notification.user?.username) {
+                setTtsMessage(`${notification.user.name} accepted your friend request.`);
+                navigate(AppView.PROFILE, { username: notification.user.username });
+            }
             break;
         case 'group_post':
         case 'group_request_approved':

@@ -1,7 +1,5 @@
 
 
-
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Post, FriendshipStatus, ScrollState, AppView, Comment } from '../types';
 import { PostCard } from './PostCard';
@@ -45,7 +43,8 @@ const AboutItem: React.FC<{iconName: React.ComponentProps<typeof Icon>['name'], 
 );
 
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ 
+// Fix: Changed to a named export.
+export const ProfileScreen: React.FC<ProfileScreenProps> = ({ 
     username, currentUser, onSetTtsMessage, lastCommand, onStartMessage, 
     onEditProfile, onViewPost, onOpenProfile, onReactToPost, onBlockUser, scrollState,
     onCommandProcessed, onSetScrollState, onNavigate, onGoBack,
@@ -74,7 +73,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const fetchProfile = useCallback(async () => {
     setIsLoading(true);
-    const user = await firebaseService.getUserProfile(username);
+    // Fix: Corrected the number of arguments passed to getUserProfile.
+    const user = await geminiService.getUserProfile(username);
     if (user) {
       setProfileUser(user);
       const userPosts = await firebaseService.getPostsByUser(user.id);
@@ -352,12 +352,24 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
     const baseClasses = "flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50";
 
+    const handleRespondToRequest = () => {
+        onNavigate(AppView.FRIENDS, { initialTab: 'requests' });
+    };
+
     return (
         <>
             {profileUser.friendshipStatus === FriendshipStatus.FRIENDS ? (
                 <button disabled className={`${baseClasses} bg-slate-700 text-slate-300`}>{t(language, 'profile.friends')}</button>
             ) : profileUser.friendshipStatus === FriendshipStatus.REQUEST_SENT ? (
                 <button disabled className={`${baseClasses} bg-slate-700 text-slate-300`}>{t(language, 'profile.requestSent')}</button>
+            ) : profileUser.friendshipStatus === FriendshipStatus.PENDING_APPROVAL ? (
+                 <button 
+                    onClick={handleRespondToRequest} 
+                    className={`${baseClasses} bg-lime-600 text-black hover:bg-lime-500`}
+                >
+                    <Icon name="add-friend" className="w-5 h-5"/>
+                    Respond to Request
+                </button>
             ) : (
                 <button 
                     onClick={() => handleCommand('add friend')} 
@@ -480,7 +492,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     </aside>
 
                     <main id="post-list-container" className="md:col-span-7 flex flex-col gap-8">
-                         {posts.length > 0 ? posts.filter(Boolean).map((post, index) => (
+                         {posts.length > 0 ? posts.map((post, index) => (
                             <div key={post.id} className="w-full snap-center">
                                 <PostCard 
                                     post={post} 
@@ -525,5 +537,3 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     </>
   );
 };
-
-export default ProfileScreen;

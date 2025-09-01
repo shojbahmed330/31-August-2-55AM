@@ -306,9 +306,31 @@ export const firebaseService = {
     // --- Posts ---
     listenToFeedPosts(currentUserId: string, callback: (posts: Post[]) => void) {
         const q = db.collection('posts').orderBy('createdAt', 'desc').limit(50);
-        return q.onSnapshot((snapshot) => {
+        return q.onSnapshot(async (snapshot) => {
+            // Get user's friend list and blocked list for accurate filtering
+            const userDoc = await db.collection('users').doc(currentUserId).get();
+            const friendIds = userDoc.exists ? userDoc.data()!.friendIds || [] : [];
+            const blockedUserIds = userDoc.exists ? userDoc.data()!.blockedUserIds || [] : [];
+    
             const feedPosts = snapshot.docs.map(docToPost);
-            const filtered = feedPosts.filter(p => p.author?.id === currentUserId || p.author?.privacySettings?.postVisibility === 'public');
+    
+            const filtered = feedPosts.filter(p => {
+                if (!p.author || !p.author.id) return false;
+    
+                // Don't show posts from users the current user has blocked.
+                if (blockedUserIds.includes(p.author.id)) return false;
+    
+                // Show the user's own posts
+                if (p.author.id === currentUserId) return true;
+    
+                // Show public posts
+                if (p.author.privacySettings?.postVisibility === 'public') return true;
+    
+                // Show friends' posts if visibility is set to 'friends'
+                if (friendIds.includes(p.author.id) && p.author.privacySettings?.postVisibility === 'friends') return true;
+    
+                return false;
+            });
             callback(filtered);
         });
     },

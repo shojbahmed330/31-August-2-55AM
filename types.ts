@@ -183,7 +183,7 @@ export interface Conversation {
   unreadCount: number;
 }
 
-export type NotificationType = 'like' | 'comment' | 'friend_request' | 'campaign_approved' | 'campaign_rejected' | 'group_post' | 'group_join_request' | 'group_request_approved' | 'admin_announcement' | 'admin_warning';
+export type NotificationType = 'like' | 'comment' | 'friend_request' | 'friend_request_approved' | 'campaign_approved' | 'campaign_rejected' | 'group_post' | 'group_join_request' | 'group_request_approved' | 'admin_announcement' | 'admin_warning';
 
 export interface Notification {
   id: string;

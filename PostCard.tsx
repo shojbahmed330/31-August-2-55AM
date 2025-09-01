@@ -1,3 +1,9 @@
+
+
+
+
+
+
 import React, { useRef, useEffect, useState } from 'react';
 import type { Post, User, Comment, GroupRole } from './types';
 import Icon from './components/Icon';
@@ -37,10 +43,6 @@ const REACTION_COLORS: { [key: string]: string } = {
 };
 
 export const PostCard: React.FC<PostCardProps> = ({ post, currentUser, isActive, isPlaying, onPlayPause, onReact, onViewPost, onAuthorClick, onAdClick, onDeletePost, groupRole, isGroupAdmin, isPinned, onPinPost, onUnpinPost, onVote }) => {
-  if (!post?.author) {
-    return null;
-  }
-
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isMenuOpen, setMenuOpen] = useState(false);
