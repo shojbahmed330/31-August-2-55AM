@@ -73,8 +73,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const fetchProfile = useCallback(async () => {
     setIsLoading(true);
-    // Fix: Corrected the number of arguments passed to getUserProfile.
-    const user = await geminiService.getUserProfile(username);
+    // FIX: Changed from geminiService (mock) to firebaseService (real) to fetch user profiles.
+    const user = await firebaseService.getUserProfile(username);
     if (user) {
       setProfileUser(user);
       const userPosts = await firebaseService.getPostsByUser(user.id);
