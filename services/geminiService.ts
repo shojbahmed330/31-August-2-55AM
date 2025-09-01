@@ -305,7 +305,9 @@ const mockApi = {
     async getFriendRequests(userId: string): Promise<User[]> { return Promise.resolve([]); },
     async getRecommendedFriends(userId: string): Promise<User[]> { return Promise.resolve([]); },
     async getFriendsList(userId: string): Promise<User[]> { return Promise.resolve([]); },
-    async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> { return Promise.resolve({ success: true }); },
+    async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> { 
+        return firebaseService.addFriend(currentUserId, targetUserId);
+    },
     async getMessages(userId1: string, userId2: string): Promise<Message[]> { return Promise.resolve([]); },
     async getChatSettings(userId1: string, userId2: string): Promise<Partial<ChatSettings>> { return Promise.resolve({ theme: 'default' }); },
     async sendAudioMessage(senderId: string, recipientId: string, duration: number, replyTo?: any): Promise<Message> { return Promise.resolve({} as Message); },

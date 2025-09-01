@@ -279,6 +279,68 @@ export const firebaseService = {
 
 
     // --- Friends ---
+    async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> {
+        const currentUserRef = db.collection('users').doc(currentUserId);
+        const targetUserRef = db.collection('users').doc(targetUserId);
+    
+        try {
+            let privacyBlock = false;
+            let alreadyExists = false;
+            
+            await db.runTransaction(async (transaction) => {
+                const currentUserDoc = await transaction.get(currentUserRef);
+                const targetUserDoc = await transaction.get(targetUserRef);
+    
+                if (!currentUserDoc.exists || !targetUserDoc.exists) {
+                    throw new Error("One or both users not found.");
+                }
+    
+                const currentUserData = currentUserDoc.data() as User;
+                const targetUserData = targetUserDoc.data() as User;
+    
+                if (currentUserData.friendIds?.includes(targetUserId) || currentUserData.sentFriendRequests?.includes(targetUserId) || currentUserData.pendingFriendRequests?.includes(targetUserId)) {
+                    alreadyExists = true;
+                    return;
+                }
+    
+                if (targetUserData.privacySettings.friendRequestPrivacy === 'friends_of_friends') {
+                    const currentUserFriends = new Set(currentUserData.friendIds || []);
+                    const targetUserFriends = new Set(targetUserData.friendIds || []);
+                    const mutualFriends = [...currentUserFriends].filter(friendId => targetUserFriends.has(friendId));
+                    if (mutualFriends.length === 0 && targetUserId !== currentUserId) {
+                         privacyBlock = true;
+                         return;
+                    }
+                }
+    
+                transaction.update(currentUserRef, { sentFriendRequests: arrayUnion(targetUserId) });
+                transaction.update(targetUserRef, { pendingFriendRequests: arrayUnion(currentUserId) });
+            });
+    
+            if (alreadyExists) return { success: true }; 
+            if (privacyBlock) return { success: false, reason: 'friends_of_friends' };
+    
+            const currentUserData = (await currentUserRef.get()).data() as User;
+            const notificationData = {
+                type: 'friend_request',
+                user: {
+                    id: currentUserData.id,
+                    name: currentUserData.name,
+                    username: currentUserData.username,
+                    avatarUrl: currentUserData.avatarUrl
+                },
+                createdAt: serverTimestamp(),
+                read: false
+            };
+            await db.collection('users').doc(targetUserId).collection('notifications').add(notificationData);
+    
+            return { success: true };
+    
+        } catch (error) {
+            console.error("Failed to send friend request:", error);
+            return { success: false, reason: 'server_error' };
+        }
+    },
     listenToFriends(userId: string, callback: (friends: User[]) => void) {
         const userRef = db.collection('users').doc(userId);
         return userRef.onSnapshot(async (userDoc) => {
