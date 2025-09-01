@@ -242,10 +242,11 @@ const UserApp: React.FC = () => {
                 setNotifications(newNotifications);
             });
             // Set up user activity tracking
-            firebaseService.updateUserLastActive(userProfile.id); // Update immediately
-            activityInterval = window.setInterval(() => {
-                firebaseService.updateUserLastActive(userProfile.id);
-            }, 60 * 1000); // Update every 60 seconds
+            // NOTE: Temporarily disabled due to Firestore security rule constraints which cause console errors.
+            // firebaseService.updateUserLastActive(userProfile.id); // Update immediately
+            // activityInterval = window.setInterval(() => {
+            //     firebaseService.updateUserLastActive(userProfile.id);
+            // }, 60 * 1000); // Update every 60 seconds
         } else {
             setUser(null);
             setPosts([]);
