@@ -300,9 +300,15 @@ const mockApi = {
     async getStories(userId: string): Promise<{ author: User; stories: Story[]; allViewed: boolean; }[]> { return Promise.resolve([]); },
     async getRandomActiveCampaign(): Promise<Campaign | null> { return Promise.resolve(null); },
     async searchUsers(query: string): Promise<User[]> { return Promise.resolve([]); },
-    async acceptFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> { return Promise.resolve(); },
-    async declineFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> { return Promise.resolve(); },
-    async getFriendRequests(userId: string): Promise<User[]> { return Promise.resolve([]); },
+    async acceptFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> { 
+        return firebaseService.acceptFriendRequest(currentUserId, requestingUserId); 
+    },
+    async declineFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> { 
+        return firebaseService.declineFriendRequest(currentUserId, requestingUserId); 
+    },
+    async getFriendRequests(userId: string): Promise<User[]> { 
+        return firebaseService.getFriendRequests(userId); 
+    },
     async getRecommendedFriends(userId: string): Promise<User[]> { return Promise.resolve([]); },
     async getFriendsList(userId: string): Promise<User[]> { return Promise.resolve([]); },
     async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> { 

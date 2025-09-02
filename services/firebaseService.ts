@@ -365,6 +365,80 @@ export const firebaseService = {
         });
     },
 
+    async getFriendRequests(userId: string): Promise<User[]> {
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (!userDoc.exists) {
+            return [];
+        }
+        const pendingRequestIds = userDoc.data()!.pendingFriendRequests || [];
+        if (pendingRequestIds.length === 0) {
+            return [];
+        }
+        // Fetch the full user profiles for each ID
+        const users = await this.getUsersByIds(pendingRequestIds);
+        return users;
+    },
+
+    async acceptFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
+        const currentUserRef = db.collection('users').doc(currentUserId);
+        const requestingUserRef = db.collection('users').doc(requestingUserId);
+
+        try {
+            await db.runTransaction(async (transaction) => {
+                // Remove from pending/sent lists
+                transaction.update(currentUserRef, {
+                    pendingFriendRequests: arrayRemove(requestingUserId)
+                });
+                transaction.update(requestingUserRef, {
+                    sentFriendRequests: arrayRemove(currentUserId)
+                });
+
+                // Add to friends lists
+                transaction.update(currentUserRef, {
+                    friendIds: arrayUnion(requestingUserId)
+                });
+                transaction.update(requestingUserRef, {
+                    friendIds: arrayUnion(currentUserId)
+                });
+            });
+
+            // Send 'accepted' notification to the original sender
+            const currentUserData = (await currentUserRef.get()).data() as User;
+            const notificationData = {
+                type: 'friend_request_approved',
+                user: {
+                    id: currentUserData.id,
+                    name: currentUserData.name,
+                    username: currentUserData.username,
+                    avatarUrl: currentUserData.avatarUrl,
+                },
+                createdAt: serverTimestamp(),
+                read: false,
+            };
+            await db.collection('users').doc(requestingUserId).collection('notifications').add(notificationData);
+
+        } catch (error) {
+            console.error("Error accepting friend request:", error);
+        }
+    },
+
+    async declineFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
+        const currentUserRef = db.collection('users').doc(currentUserId);
+        const requestingUserRef = db.collection('users').doc(requestingUserId);
+        try {
+            await db.runTransaction(async (transaction) => {
+                transaction.update(currentUserRef, {
+                    pendingFriendRequests: arrayRemove(requestingUserId)
+                });
+                transaction.update(requestingUserRef, {
+                    sentFriendRequests: arrayRemove(currentUserId)
+                });
+            });
+        } catch (error) {
+            console.error("Error declining friend request:", error);
+        }
+    },
+
     // --- Posts ---
     listenToFeedPosts(currentUserId: string, callback: (posts: Post[]) => void) {
         const q = db.collection('posts').orderBy('createdAt', 'desc').limit(50);
