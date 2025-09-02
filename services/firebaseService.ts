@@ -206,8 +206,6 @@ export const firebaseService = {
                     blockedUserIds: [],
                     voiceCoins: 100,
                     friendIds: [],
-                    pendingFriendRequests: [], // Kept for potential backward compatibility or other features
-                    sentFriendRequests: [],    // Kept for potential backward compatibility or other features
                     createdAt: serverTimestamp(),
                 };
                 
@@ -315,36 +313,26 @@ export const firebaseService = {
         const receiver = await this.getUserProfileById(targetUserId);
     
         if (!sender || !receiver) {
-            console.error("Sender or receiver not found.");
-            return { success: false, reason: 'server_error' };
+            return { success: false, reason: 'user_not_found' };
         }
         
-        // Privacy check: Can the sender send a request to the receiver?
+        // Privacy check
         if (receiver.privacySettings.friendRequestPrivacy === 'friends_of_friends') {
             const senderFriends = new Set(sender.friendIds || []);
             const receiverFriends = new Set(receiver.friendIds || []);
             const mutualFriends = [...senderFriends].filter(friendId => receiverFriends.has(friendId));
-            if (mutualFriends.length === 0 && sender.id !== receiver.id) { // Check for mutual friends
+            if (mutualFriends.length === 0 && sender.id !== receiver.id) {
                  return { success: false, reason: 'friends_of_friends' };
             }
         }
         
         try {
-            // Prevent duplicate requests by checking if a request already exists in either direction
-            const requestId1 = `${currentUserId}_${targetUserId}`;
-            const requestId2 = `${targetUserId}_${currentUserId}`;
-            const existingReq1 = await db.collection('friendRequests').doc(requestId1).get();
-            const existingReq2 = await db.collection('friendRequests').doc(requestId2).get();
+            // This is the simplest possible secure write operation.
+            // It creates a document with a predictable ID. If it already exists, `set` will overwrite it, which is fine for this purpose.
+            // The security rule for 'friendRequests' only needs to validate this single `create` operation.
+            const requestId = `${currentUserId}_${targetUserId}`;
+            const requestDocRef = db.collection('friendRequests').doc(requestId);
     
-            if (existingReq1.exists || existingReq2.exists) {
-                console.log("Friend request already exists.");
-                return { success: true }; // Treat as success to update UI
-            }
-    
-            // The ONLY write operation: create a new document in the `friendRequests` collection.
-            // This is secure because it doesn't modify any user's private data directly.
-            // The security rules for '/friendRequests/{requestId}' will allow this.
-            const requestDocRef = db.collection('friendRequests').doc(requestId1);
             await requestDocRef.set({
                 from: { id: sender.id, name: sender.name, avatarUrl: sender.avatarUrl, username: sender.username },
                 to: { id: receiver.id, name: receiver.name, avatarUrl: receiver.avatarUrl, username: receiver.username },
@@ -355,8 +343,7 @@ export const firebaseService = {
             return { success: true };
         } catch (error) {
             console.error("FirebaseError on addFriend:", error);
-            // This log will capture the exact permission error if it happens here
-            return { success: false, reason: 'server_error' };
+            return { success: false, reason: 'permission_denied' };
         }
     },
 
