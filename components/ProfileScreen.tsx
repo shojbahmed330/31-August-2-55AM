@@ -251,15 +251,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         const intentResponse = await geminiService.processIntent(command, context);
         
         switch (intentResponse.intent) {
+          // FIX: The call to `addFriend` was missing the current user's ID and the state update was incorrect.
+          // Both issues have been resolved to align with the behavior of the "Add Friend" button.
           case 'intent_add_friend':
             if (profileUser.id !== currentUser.id) {
-                // FIX: `addFriend` was missing the current user's ID.
                 const result = await geminiService.addFriend(currentUser.id, profileUser.id);
                 if (result.success) {
-                  setProfileUser(u => u ? { ...u, friendshipStatus: FriendshipStatus.REQUEST_SENT } : null);
+                  // Optimistically update the UI to show the request has been sent.
+                  setFriendshipStatus(FriendshipStatus.REQUEST_SENT);
                   onSetTtsMessage(getTtsPrompt('friend_request_sent', language, {name: profileUser.name}));
                 } else if(result.reason === 'friends_of_friends'){
                   onSetTtsMessage(getTtsPrompt('friend_request_privacy_block', language, {name: profileUser.name}));
+                } else {
+                  onSetTtsMessage("Failed to send friend request. Please check your permissions or try again later.");
                 }
             }
             break;
@@ -271,7 +275,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     } finally {
         onCommandProcessed();
     }
-  }, [profileUser, currentUser.id, handleAddFriendAction, onCommandProcessed, onSetTtsMessage, language]);
+  }, [profileUser, currentUser.id, onCommandProcessed, onSetTtsMessage, language]);
 
   useEffect(() => {
     if (lastCommand) {

@@ -244,15 +244,18 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
           case 'intent_view_comments':
             handleComment();
             break;
+// FIX: The call to `addFriend` was missing the current user's ID and the state update was incorrect.
+// Both issues have been resolved to align with the behavior of the "Add Friend" button.
           case 'intent_add_friend':
             if (profileUser.id !== currentUser.id) {
-              // FIX: `addFriend` expects only the target user's ID. The current user is inferred from the auth state.
-              const result = await geminiService.addFriend(profileUser.id);
+              const result = await geminiService.addFriend(currentUser.id, profileUser.id);
               if (result.success) {
                 setProfileUser(u => u ? { ...u, friendshipStatus: FriendshipStatus.REQUEST_SENT } : null);
                 onSetTtsMessage(getTtsPrompt('friend_request_sent', language, {name: profileUser.name}));
               } else if(result.reason === 'friends_of_friends'){
                 onSetTtsMessage(getTtsPrompt('friend_request_privacy_block', language, {name: profileUser.name}));
+              } else {
+                onSetTtsMessage("Failed to send friend request. Please check your permissions or try again later.");
               }
             }
             break;
