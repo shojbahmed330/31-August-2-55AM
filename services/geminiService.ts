@@ -161,8 +161,32 @@ export const geminiService = {
             type: Type.OBJECT,
             properties: {
               intent: { type: Type.STRING },
-              slots: { type: Type.OBJECT }
-            }
+              slots: {
+                type: Type.OBJECT,
+                properties: {
+                    target_name: { type: Type.STRING },
+                    index: { type: Type.STRING },
+                    field: { type: Type.STRING },
+                    value: { type: Type.STRING },
+                    setting: { type: Type.STRING },
+                    message_content: { type: Type.STRING },
+                    emoji_type: { type: Type.STRING },
+                    prompt: { type: Type.STRING },
+                    sponsor_name: { type: Type.STRING },
+                    caption_text: { type: Type.STRING },
+                    budget_amount: { type: Type.STRING },
+                    media_type: { type: Type.STRING },
+                    group_name: { type: Type.STRING },
+                    search_query: { type: Type.STRING },
+                    category_name: { type: Type.STRING },
+                    option_number: { type: Type.STRING },
+                    option_text: { type: Type.STRING },
+                    privacy_level: { type: Type.STRING },
+                    text: { type: Type.STRING },
+                },
+              }
+            },
+            required: ['intent']
           }
         },
       });
@@ -436,7 +460,7 @@ export const geminiService = {
     },
 
     // --- Rooms ---
-    // FIX: Add missing pass-through functions
+    // @FIXML-FIX: Add missing pass-through functions to resolve multiple errors.
     listenToLiveAudioRooms: (callback: (rooms: LiveAudioRoom[]) => void) => firebaseService.listenToLiveAudioRooms(callback),
     listenToLiveVideoRooms: (callback: (rooms: LiveVideoRoom[]) => void) => firebaseService.listenToLiveVideoRooms(callback),
     listenToAudioRoom: (roomId: string, callback: (room: LiveAudioRoom | null) => void) => firebaseService.listenToRoom(roomId, 'audio', callback),
@@ -513,7 +537,6 @@ export const geminiService = {
     verifyCampaignPayment: (campaignId, adminId) => firebaseService.verifyCampaignPayment(campaignId, adminId),
     adminUpdateUserProfilePicture: (userId, base64) => firebaseService.adminUpdateUserProfilePicture(userId, base64),
     reactivateUserAsAdmin: (userId) => firebaseService.reactivateUserAsAdmin(userId),
-    // FIX: Add missing functions that were causing errors
     promoteGroupMember: (groupId: string, userToPromote: User, newRole: 'Admin' | 'Moderator') => firebaseService.promoteGroupMember(groupId, userToPromote, newRole),
     demoteGroupMember: (groupId: string, userToDemote: User, oldRole: 'Admin' | 'Moderator') => firebaseService.demoteGroupMember(groupId, userToDemote, oldRole),
     removeGroupMember: (groupId: string, userToRemove: User) => firebaseService.removeGroupMember(groupId, userToRemove),
