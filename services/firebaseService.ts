@@ -252,7 +252,6 @@ export const firebaseService = {
     
     signOutUser: () => auth.signOut(),
 
-    // --- FIX START: Add missing notification methods ---
     // --- Notifications ---
     listenToNotifications(userId: string, callback: (notifications: Notification[]) => void) {
         const q = db.collection('users').doc(userId).collection('notifications').orderBy('createdAt', 'desc').limit(20);
@@ -278,7 +277,6 @@ export const firebaseService = {
         });
         await batch.commit();
     },
-    // --- FIX END ---
 
     async isUsernameTaken(username: string): Promise<boolean> {
         const usernameDocRef = db.collection('usernames').doc(username.toLowerCase());
@@ -315,28 +313,37 @@ export const firebaseService = {
     async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> {
         const sender = await this.getUserProfileById(currentUserId);
         const receiver = await this.getUserProfileById(targetUserId);
-
-        if (!sender || !receiver) return { success: false, reason: 'server_error' };
+    
+        if (!sender || !receiver) {
+            console.error("Sender or receiver not found.");
+            return { success: false, reason: 'server_error' };
+        }
         
-        // Prevent duplicate requests
-        const requestId1 = `${currentUserId}_${targetUserId}`;
-        const requestId2 = `${targetUserId}_${currentUserId}`;
-        const existingReq1 = await db.collection('friendRequests').doc(requestId1).get();
-        const existingReq2 = await db.collection('friendRequests').doc(requestId2).get();
-        if (existingReq1.exists || existingReq2.exists) return { success: true }; // Already requested or friends
-
-        // Privacy check
+        // Privacy check: Can the sender send a request to the receiver?
         if (receiver.privacySettings.friendRequestPrivacy === 'friends_of_friends') {
             const senderFriends = new Set(sender.friendIds || []);
             const receiverFriends = new Set(receiver.friendIds || []);
             const mutualFriends = [...senderFriends].filter(friendId => receiverFriends.has(friendId));
-            if (mutualFriends.length === 0 && targetUserId !== currentUserId) {
-                return { success: false, reason: 'friends_of_friends' };
+            if (mutualFriends.length === 0 && sender.id !== receiver.id) { // Check for mutual friends
+                 return { success: false, reason: 'friends_of_friends' };
             }
         }
         
         try {
-            // Create a request document. This is secure.
+            // Prevent duplicate requests by checking if a request already exists in either direction
+            const requestId1 = `${currentUserId}_${targetUserId}`;
+            const requestId2 = `${targetUserId}_${currentUserId}`;
+            const existingReq1 = await db.collection('friendRequests').doc(requestId1).get();
+            const existingReq2 = await db.collection('friendRequests').doc(requestId2).get();
+    
+            if (existingReq1.exists || existingReq2.exists) {
+                console.log("Friend request already exists.");
+                return { success: true }; // Treat as success to update UI
+            }
+    
+            // The ONLY write operation: create a new document in the `friendRequests` collection.
+            // This is secure because it doesn't modify any user's private data directly.
+            // The security rules for '/friendRequests/{requestId}' will allow this.
             const requestDocRef = db.collection('friendRequests').doc(requestId1);
             await requestDocRef.set({
                 from: { id: sender.id, name: sender.name, avatarUrl: sender.avatarUrl, username: sender.username },
@@ -344,17 +351,11 @@ export const firebaseService = {
                 status: 'pending',
                 createdAt: serverTimestamp(),
             });
-
-            // FIX: Removed the creation of a notification in the target user's subcollection.
-            // This operation was causing a "Missing or insufficient permissions" error because
-            // a user cannot write to another user's private data. In a real-world scenario,
-            // this would be handled by a Cloud Function triggered by the creation of the
-            // 'friendRequests' document. For this client-only app, the request is still
-            // successfully created, and the recipient will see it in their "Friend Requests" tab.
     
             return { success: true };
         } catch (error) {
-            console.error("Failed to send friend request:", error);
+            console.error("FirebaseError on addFriend:", error);
+            // This log will capture the exact permission error if it happens here
             return { success: false, reason: 'server_error' };
         }
     },
@@ -478,7 +479,6 @@ export const firebaseService = {
         });
     },
 
-    // FIX: Add getExplorePosts for one-time fetch needed by Gemini
     async getExplorePosts(currentUserId: string): Promise<Post[]> {
         const q = db.collection('posts')
             .where('author.privacySettings.postVisibility', '==', 'public')
@@ -663,7 +663,6 @@ export const firebaseService = {
         }
     },
     
-// @FIXML-FIX-613: Added parentId to the data type
     async createComment(user: User, postId: string, data: { text?: string; imageFile?: File; audioBlob?: Blob; duration?: number; parentId?: string | null }): Promise<Comment | null> {
         if (user.commentingSuspendedUntil && new Date(user.commentingSuspendedUntil) > new Date()) {
             console.warn(`User ${user.id} is suspended from commenting.`);
@@ -680,7 +679,6 @@ export const firebaseService = {
             },
             createdAt: Timestamp.now(),
             reactions: {},
-// @FIXML-FIX-613: Added parentId to the new comment object
             parentId: data.parentId || null,
         };
     
@@ -711,7 +709,6 @@ export const firebaseService = {
         } as Comment;
     },
 
-// @FIXML-FIX-619: Add editComment function
     async editComment(postId: string, commentId: string, newText: string): Promise<void> {
         const postRef = db.collection('posts').doc(postId);
         try {
@@ -735,7 +732,6 @@ export const firebaseService = {
         }
     },
 
-// @FIXML-FIX-624: Add deleteComment function
     async deleteComment(postId: string, commentId: string): Promise<void> {
         const postRef = db.collection('posts').doc(postId);
         try {
@@ -1034,7 +1030,6 @@ export const firebaseService = {
     },
     
     // --- Rooms ---
-// @FIXML-FIX: Add missing implementation for Rooms functionality
 listenToLiveAudioRooms(callback: (rooms: LiveAudioRoom[]) => void) {
     const q = db.collection('liveAudioRooms').where('status', '==', 'live');
     return q.onSnapshot((snapshot) => {
@@ -1220,7 +1215,7 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
             createdAt: doc.data().createdAt instanceof firebase.firestore.Timestamp ? doc.data().createdAt.toDate().toISOString() : new Date().toISOString(),
         } as Campaign));
     },
-    async submitCampaignForApproval(campaignData: Omit<Campaign, 'id' | 'views' | 'clicks' | 'status' | 'transactionId'>, transactionId: string): Promise<void> {
+    async submitCampaignForApproval(campaignData: Omit<Campaign, 'id'|'views'|'clicks'|'status'|'transactionId'>, transactionId: string): Promise<void> {
         const campaignToSave: Omit<Campaign, 'id'> = {
             ...campaignData,
             views: 0,
@@ -1554,7 +1549,6 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
         }
     },
 
-    // --- FIX START: Add missing Ads & Monetization methods ---
     // --- Ads & Monetization ---
     async getInjectableAd(user: User): Promise<Post | null> {
         try {
@@ -1686,7 +1680,6 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
             return [];
         }
     },
-    // --- FIX END ---
     async getRandomActiveCampaign(): Promise<Campaign | null> {
         try {
             const q = db.collection('campaigns').where('status', '==', 'active');
