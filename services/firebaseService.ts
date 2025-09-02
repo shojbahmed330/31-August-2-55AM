@@ -345,14 +345,12 @@ export const firebaseService = {
                 createdAt: serverTimestamp(),
             });
 
-            // Create a notification for the target user. This is also secure.
-            const notificationData = {
-                type: 'friend_request',
-                user: { id: sender.id, name: sender.name, username: sender.username, avatarUrl: sender.avatarUrl },
-                createdAt: serverTimestamp(),
-                read: false,
-            };
-            await db.collection('users').doc(targetUserId).collection('notifications').add(notificationData);
+            // FIX: Removed the creation of a notification in the target user's subcollection.
+            // This operation was causing a "Missing or insufficient permissions" error because
+            // a user cannot write to another user's private data. In a real-world scenario,
+            // this would be handled by a Cloud Function triggered by the creation of the
+            // 'friendRequests' document. For this client-only app, the request is still
+            // successfully created, and the recipient will see it in their "Friend Requests" tab.
     
             return { success: true };
         } catch (error) {
