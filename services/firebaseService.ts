@@ -1400,13 +1400,161 @@ async moveToAudienceInAudioRoom(hostId: string, userId: string, roomId: string):
         await db.collection('users').doc(userId).update({ isDeactivated: false });
         return true;
     },
-    async promoteGroupMember(groupId: string, userToPromote: User, newRole: 'Admin' | 'Moderator') => firebaseService.promoteGroupMember(groupId, userToPromote, newRole),
-    async demoteGroupMember(groupId: string, userToDemote: User, oldRole: 'Admin' | 'Moderator') => firebaseService.demoteGroupMember(groupId, userToDemote, oldRole),
-    async removeGroupMember(groupId: string, userToRemove: User) => firebaseService.removeGroupMember(groupId, userToRemove),
-    async approveJoinRequest(groupId: string, userId: string) => firebaseService.approveJoinRequest(groupId, userId),
-    async rejectJoinRequest(groupId: string, userId: string) => firebaseService.rejectJoinRequest(groupId, userId),
-    async approvePost(postId: string) => firebaseService.approvePost(postId),
-    async rejectPost(postId: string) => firebaseService.rejectPost(postId),
+    async promoteGroupMember(groupId: string, userToPromote: User, newRole: 'Admin' | 'Moderator'): Promise<boolean> {
+        const groupRef = db.collection('groups').doc(groupId);
+        try {
+            const fieldToUpdate = newRole === 'Admin' ? 'admins' : 'moderators';
+            const userObject = {
+                id: userToPromote.id,
+                name: userToPromote.name,
+                username: userToPromote.username,
+                avatarUrl: userToPromote.avatarUrl,
+            };
+            const otherField = newRole === 'Admin' ? 'moderators' : 'admins';
+            await groupRef.update({
+                [fieldToUpdate]: arrayUnion(userObject),
+                [otherField]: arrayRemove(userObject),
+            });
+            return true;
+        } catch (error) {
+            console.error(`Failed to promote ${userToPromote.name} to ${newRole}:`, error);
+            return false;
+        }
+    },
+    async demoteGroupMember(groupId: string, userToDemote: User, oldRole: 'Admin' | 'Moderator'): Promise<boolean> {
+        const groupRef = db.collection('groups').doc(groupId);
+        try {
+            const fieldToUpdate = oldRole === 'Admin' ? 'admins' : 'moderators';
+            await groupRef.update({
+                [fieldToUpdate]: arrayRemove({
+                    id: userToDemote.id,
+                    name: userToDemote.name,
+                    username: userToDemote.username,
+                    avatarUrl: userToDemote.avatarUrl,
+                })
+            });
+            return true;
+        } catch (error) {
+            console.error(`Failed to demote ${userToDemote.name} from ${oldRole}:`, error);
+            return false;
+        }
+    },
+    async removeGroupMember(groupId: string, userToRemove: User): Promise<boolean> {
+        const groupRef = db.collection('groups').doc(groupId);
+        try {
+            const userObject = {
+                id: userToRemove.id,
+                name: userToRemove.name,
+                username: userToRemove.username,
+                avatarUrl: userToRemove.avatarUrl,
+            };
+            await groupRef.update({
+                members: arrayRemove(userObject),
+                admins: arrayRemove(userObject),
+                moderators: arrayRemove(userObject),
+                memberCount: increment(-1),
+            });
+            return true;
+        } catch (error) {
+            console.error(`Failed to remove ${userToRemove.name} from group:`, error);
+            return false;
+        }
+    },
+    async approveJoinRequest(groupId: string, userId: string): Promise<boolean> {
+        const groupRef = db.collection('groups').doc(groupId);
+        try {
+            await db.runTransaction(async (transaction) => {
+                const groupDoc = await transaction.get(groupRef);
+                if (!groupDoc.exists) throw "Group not found";
+                
+                const groupData = groupDoc.data() as Group;
+                const joinRequests = groupData.joinRequests || [];
+                const requestIndex = joinRequests.findIndex(r => r.user.id === userId);
+                
+                if (requestIndex === -1) return; // Request already handled
+                
+                const userToApprove = joinRequests[requestIndex].user;
+                const updatedRequests = joinRequests.filter(r => r.user.id !== userId);
+                
+                const memberObject = {
+                    id: userToApprove.id,
+                    name: userToApprove.name,
+                    username: userToApprove.username,
+                    avatarUrl: userToApprove.avatarUrl,
+                };
+
+                transaction.update(groupRef, {
+                    joinRequests: updatedRequests,
+                    members: arrayUnion(memberObject),
+                    memberCount: increment(1)
+                });
+            });
+            return true;
+        } catch (error) {
+            console.error(`Failed to approve join request for user ${userId}:`, error);
+            return false;
+        }
+    },
+    async rejectJoinRequest(groupId: string, userId: string): Promise<boolean> {
+        const groupRef = db.collection('groups').doc(groupId);
+        try {
+            await db.runTransaction(async (transaction) => {
+                const groupDoc = await transaction.get(groupRef);
+                if (!groupDoc.exists) throw "Group not found";
+
+                const groupData = groupDoc.data() as Group;
+                const updatedRequests = (groupData.joinRequests || []).filter(r => r.user.id !== userId);
+
+                transaction.update(groupRef, { joinRequests: updatedRequests });
+            });
+            return true;
+        } catch (error) {
+            console.error(`Failed to reject join request for user ${userId}:`, error);
+            return false;
+        }
+    },
+    async approvePost(postId: string): Promise<boolean> {
+        const postRef = db.collection('posts').doc(postId);
+        try {
+            await postRef.update({ status: 'approved' });
+            const postDoc = await postRef.get();
+            if (postDoc.exists && postDoc.data().groupId) {
+                const groupId = postDoc.data().groupId;
+                const groupRef = db.collection('groups').doc(groupId);
+                const groupDoc = await groupRef.get();
+                if (groupDoc.exists) {
+                    const groupData = groupDoc.data() as Group;
+                    const updatedPendingPosts = (groupData.pendingPosts || []).filter(p => p.id !== postId);
+                    await groupRef.update({ pendingPosts: updatedPendingPosts });
+                }
+            }
+            return true;
+        } catch (error) {
+            console.error(`Failed to approve post ${postId}:`, error);
+            return false;
+        }
+    },
+    async rejectPost(postId: string): Promise<boolean> {
+        const postRef = db.collection('posts').doc(postId);
+        try {
+            const postDoc = await postRef.get();
+            if (postDoc.exists && postDoc.data().groupId) {
+                const groupId = postDoc.data().groupId;
+                const groupRef = db.collection('groups').doc(groupId);
+                const groupDoc = await groupRef.get();
+                if (groupDoc.exists) {
+                    const groupData = groupDoc.data() as Group;
+                    const updatedPendingPosts = (groupData.pendingPosts || []).filter(p => p.id !== postId);
+                    await groupRef.update({ pendingPosts: updatedPendingPosts });
+                }
+            }
+            await postRef.delete();
+            return true;
+        } catch (error) {
+            console.error(`Failed to reject/delete post ${postId}:`, error);
+            return false;
+        }
+    },
 
     // --- FIX START: Add missing Ads & Monetization methods ---
     // --- Ads & Monetization ---
