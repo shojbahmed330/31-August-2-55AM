@@ -215,8 +215,8 @@ export const geminiService = {
     await firebaseService.declineFriendRequest(currentUserId, requestingUserId);
   },
 
-  async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> {
-    return await firebaseService.addFriend(currentUserId, targetUserId);
+  async addFriend(targetUserId: string): Promise<{ success: boolean; reason?: string }> {
+    return await firebaseService.addFriend(targetUserId);
   },
   
   // --- This is a mock/simulated function ---

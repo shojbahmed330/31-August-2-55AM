@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Post, FriendshipStatus, ScrollState, AppView } from './types';
 import { PostCard } from './components/PostCard';
@@ -247,7 +246,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
             break;
           case 'intent_add_friend':
             if (profileUser.id !== currentUser.id) {
-              const result = await geminiService.addFriend(currentUser.id, profileUser.id);
+              // FIX: `addFriend` expects only the target user's ID. The current user is inferred from the auth state.
+              const result = await geminiService.addFriend(profileUser.id);
               if (result.success) {
                 setProfileUser(u => u ? { ...u, friendshipStatus: FriendshipStatus.REQUEST_SENT } : null);
                 onSetTtsMessage(getTtsPrompt('friend_request_sent', language, {name: profileUser.name}));

@@ -308,7 +308,14 @@ export const firebaseService = {
     },
 
     // --- Friends (New Secure Implementation) ---
-    async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> {
+    async addFriend(targetUserId: string): Promise<{ success: boolean; reason?: string }> {
+        const currentUserAuth = auth.currentUser;
+        if (!currentUserAuth) {
+            console.error("addFriend failed: No user is currently signed in.");
+            return { success: false, reason: 'not_signed_in' };
+        }
+        const currentUserId = currentUserAuth.uid;
+
         const sender = await this.getUserProfileById(currentUserId);
         const receiver = await this.getUserProfileById(targetUserId);
     
@@ -327,9 +334,6 @@ export const firebaseService = {
         }
         
         try {
-            // This is the simplest possible secure write operation.
-            // It creates a document with a predictable ID. If it already exists, `set` will overwrite it, which is fine for this purpose.
-            // The security rule for 'friendRequests' only needs to validate this single `create` operation.
             const requestId = `${currentUserId}_${targetUserId}`;
             const requestDocRef = db.collection('friendRequests').doc(requestId);
     

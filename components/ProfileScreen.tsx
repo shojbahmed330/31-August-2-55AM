@@ -249,12 +249,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             break;
           case 'intent_add_friend':
             if (profileUser.id !== currentUser.id) {
-              const result = await geminiService.addFriend(currentUser.id, profileUser.id);
+              const result = await geminiService.addFriend(profileUser.id);
               if (result.success) {
                 setProfileUser(u => u ? { ...u, friendshipStatus: FriendshipStatus.REQUEST_SENT } : null);
                 onSetTtsMessage(getTtsPrompt('friend_request_sent', language, {name: profileUser.name}));
               } else if(result.reason === 'friends_of_friends'){
                 onSetTtsMessage(getTtsPrompt('friend_request_privacy_block', language, {name: profileUser.name}));
+              } else {
+                onSetTtsMessage("Failed to send friend request. Please try again later.");
               }
             }
             break;
