@@ -257,13 +257,11 @@ export const firebaseService = {
     },
 
     // --- Friends (New Secure Implementation) ---
-    async addFriend(targetUserId: string): Promise<{ success: boolean; reason?: string }> {
-        const currentUserAuth = auth.currentUser;
-        if (!currentUserAuth) {
-            console.error("addFriend failed: No user is currently signed in.");
+    async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> {
+        if (!currentUserId) {
+             console.error("addFriend failed: No currentUserId provided.");
             return { success: false, reason: 'not_signed_in' };
         }
-        const currentUserId = currentUserAuth.uid;
     
         const sender = await this.getUserProfileById(currentUserId);
         const receiver = await this.getUserProfileById(targetUserId);

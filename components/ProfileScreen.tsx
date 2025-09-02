@@ -228,7 +228,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const handleAddFriendAction = useCallback(async () => {
     if (profileUser) {
-        const result = await geminiService.addFriend(profileUser.id);
+        const result = await geminiService.addFriend(currentUser.id, profileUser.id);
         if (result.success) {
             setFriendshipStatus(FriendshipStatus.REQUEST_SENT);
             onSetTtsMessage(getTtsPrompt('friend_request_sent', language, { name: profileUser.name }));
@@ -238,7 +238,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             onSetTtsMessage("Failed to send friend request. Please try again later.");
         }
     }
-  }, [profileUser, onSetTtsMessage, language]);
+  }, [profileUser, currentUser.id, onSetTtsMessage, language]);
 
   const handleCommand = useCallback(async (command: string) => {
     if (!profileUser) {
@@ -253,7 +253,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         switch (intentResponse.intent) {
           case 'intent_add_friend':
             if (profileUser.id !== currentUser.id) {
-                await handleAddFriendAction();
+                // FIX: `addFriend` was missing the current user's ID.
+                const result = await geminiService.addFriend(currentUser.id, profileUser.id);
+                if (result.success) {
+                  setProfileUser(u => u ? { ...u, friendshipStatus: FriendshipStatus.REQUEST_SENT } : null);
+                  onSetTtsMessage(getTtsPrompt('friend_request_sent', language, {name: profileUser.name}));
+                } else if(result.reason === 'friends_of_friends'){
+                  onSetTtsMessage(getTtsPrompt('friend_request_privacy_block', language, {name: profileUser.name}));
+                }
             }
             break;
           // ... other cases ...

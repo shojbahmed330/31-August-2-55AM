@@ -96,15 +96,14 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, onSetTtsMess
   }, [currentUser.id, fetchData, onSetTtsMessage, language]);
   
   const handleAddFriend = useCallback(async (targetUser: User) => {
-    // FIX: `addFriend` expects only the target user's ID. The current user is inferred from the auth state.
-    const result = await geminiService.addFriend(targetUser.id);
+    const result = await geminiService.addFriend(currentUser.id, targetUser.id);
      if (result.success) {
         onSetTtsMessage(getTtsPrompt('friend_request_sent', language, { name: targetUser.name }));
         fetchData(); // Refresh lists to show "Request Sent"
      } else {
          onSetTtsMessage(getTtsPrompt('friend_request_privacy_block', language, { name: targetUser.name }));
      }
-  }, [fetchData, onSetTtsMessage, language]);
+  }, [currentUser.id, fetchData, onSetTtsMessage, language]);
 
   const handleCommand = useCallback(async (command: string) => {
     try {
