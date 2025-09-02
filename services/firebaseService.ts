@@ -108,77 +108,24 @@ const matchesTargeting = (campaign: Campaign, user: User): boolean => {
     return true;
 };
 
-// --- New Friend Request Syncing Logic ---
-const syncAcceptedFriends = async (userId: string) => {
-    if (!userId) return;
-    // Find requests I sent that were accepted by the other user
-    const q = db.collection('friendRequests')
-        .where('from.id', '==', userId)
-        .where('status', '==', 'accepted');
-    
-    const snapshot = await q.get();
-    if (snapshot.empty) return;
-
-    const batch = db.batch();
-    const userRef = db.collection('users').doc(userId);
-    const friendsToAdd = [];
-
-    snapshot.docs.forEach(doc => {
-        const request = doc.data();
-        friendsToAdd.push(request.to.id);
-        // Delete the request doc once it has been processed to complete the handshake
-        batch.delete(doc.ref);
-    });
-
-    if (friendsToAdd.length > 0) {
-        // Add the new friends to my own friends list
-        batch.update(userRef, {
-            friendIds: arrayUnion(...friendsToAdd),
-            sentFriendRequests: arrayRemove(...friendsToAdd)
-        });
-        console.log(`Synced ${friendsToAdd.length} new friendships for user ${userId}.`);
-        await batch.commit();
-    }
-};
-
-
 // --- Service Definition ---
 export const firebaseService = {
     // --- Authentication ---
-    onAuthStateChanged: (callback: (user: User | null) => void) => {
-        return auth.onAuthStateChanged(async (firebaseUser: FirebaseUser | null) => {
+    onAuthStateChanged: (callback: (userAuth: { id: string } | null) => void) => {
+        return auth.onAuthStateChanged((firebaseUser: FirebaseUser | null) => {
             if (firebaseUser) {
-                try {
-                    // Sync friendships on login before fetching profile
-                    await syncAcceptedFriends(firebaseUser.uid);
-                    
-                    const userProfile = await firebaseService.getUserProfileById(firebaseUser.uid);
-                    if (userProfile && !userProfile.isDeactivated && !userProfile.isBanned) {
-                        callback(userProfile);
-                    } else {
-                        if(userProfile?.isDeactivated) console.log(`User ${firebaseUser.uid} is deactivated. Signing out.`);
-                        if(userProfile?.isBanned) console.log(`User ${firebaseUser.uid} is banned. Signing out.`);
-                        await auth.signOut();
-                        callback(null);
-                    }
-                } catch (error) {
-                    console.warn("Could not reach Firestore. Creating a temporary user profile for offline use.", error);
-                    const fallbackUser: User = {
-                        id: firebaseUser.uid,
-                        name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Offline User',
-                        name_lowercase: (firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Offline User').toLowerCase(),
-                        username: firebaseUser.email?.split('@')[0] || 'offlineuser',
-                        email: firebaseUser.email!,
-                        avatarUrl: firebaseUser.photoURL || DEFAULT_AVATARS[0],
-                        bio: 'Working in offline mode.',
-                        coverPhotoUrl: DEFAULT_COVER_PHOTOS[0],
-                        privacySettings: { postVisibility: 'public', friendRequestPrivacy: 'everyone' },
-                        blockedUserIds: [],
-                        voiceCoins: 0,
-                        createdAt: new Date().toISOString(),
-                    };
-                    callback(fallbackUser);
-                }
+                callback({ id: firebaseUser.uid });
+            } else {
+                callback(null);
+            }
+        });
+    },
+
+    listenToCurrentUser(userId: string, callback: (user: User | null) => void) {
+        const userRef = db.collection('users').doc(userId);
+        return userRef.onSnapshot((doc) => {
+            if (doc.exists) {
+                callback(docToUser(doc));
             } else {
                 callback(null);
             }
@@ -206,6 +153,8 @@ export const firebaseService = {
                     blockedUserIds: [],
                     voiceCoins: 100,
                     friendIds: [],
+                    pendingFriendRequests: [],
+                    sentFriendRequests: [],
                     createdAt: serverTimestamp(),
                 };
                 
@@ -315,7 +264,7 @@ export const firebaseService = {
             return { success: false, reason: 'not_signed_in' };
         }
         const currentUserId = currentUserAuth.uid;
-
+    
         const sender = await this.getUserProfileById(currentUserId);
         const receiver = await this.getUserProfileById(targetUserId);
     
@@ -323,7 +272,6 @@ export const firebaseService = {
             return { success: false, reason: 'user_not_found' };
         }
         
-        // Privacy check
         if (receiver.privacySettings.friendRequestPrivacy === 'friends_of_friends') {
             const senderFriends = new Set(sender.friendIds || []);
             const receiverFriends = new Set(receiver.friendIds || []);
@@ -334,15 +282,21 @@ export const firebaseService = {
         }
         
         try {
-            const requestId = `${currentUserId}_${targetUserId}`;
-            const requestDocRef = db.collection('friendRequests').doc(requestId);
-    
-            await requestDocRef.set({
-                from: { id: sender.id, name: sender.name, avatarUrl: sender.avatarUrl, username: sender.username },
-                to: { id: receiver.id, name: receiver.name, avatarUrl: receiver.avatarUrl, username: receiver.username },
-                status: 'pending',
+            const senderRef = db.collection('users').doc(currentUserId);
+            const receiverRef = db.collection('users').doc(targetUserId);
+            
+            const batch = db.batch();
+            batch.update(senderRef, { sentFriendRequests: arrayUnion(targetUserId) });
+            batch.update(receiverRef, { pendingFriendRequests: arrayUnion(currentUserId) });
+            await batch.commit();
+
+            const notificationData = {
+                type: 'friend_request',
+                user: { id: sender.id, name: sender.name, username: sender.username, avatarUrl: sender.avatarUrl },
                 createdAt: serverTimestamp(),
-            });
+                read: false,
+            };
+            await db.collection('users').doc(targetUserId).collection('notifications').add(notificationData);
     
             return { success: true };
         } catch (error) {
@@ -352,56 +306,52 @@ export const firebaseService = {
     },
 
     async getFriendRequests(userId: string): Promise<User[]> {
-        const q = db.collection('friendRequests')
-            .where('to.id', '==', userId)
-            .where('status', '==', 'pending');
-        
-        const snapshot = await q.get();
-        if (snapshot.empty) return [];
-
-        // Return the user object of the person who sent the request
-        return snapshot.docs.map(doc => doc.data().from as User);
+        const user = await this.getUserProfileById(userId);
+        if (!user || !user.pendingFriendRequests || user.pendingFriendRequests.length === 0) {
+            return [];
+        }
+        return this.getUsersByIds(user.pendingFriendRequests);
     },
 
     async acceptFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
-        const requestId = `${requestingUserId}_${currentUserId}`;
-        const requestRef = db.collection('friendRequests').doc(requestId);
         const currentUserRef = db.collection('users').doc(currentUserId);
+        const requestingUserRef = db.collection('users').doc(requestingUserId);
         
-        try {
-            // Update the request status to accepted. The sender's client will sync this later.
-            await requestRef.update({ status: 'accepted' });
-            
-            // Current user immediately adds the friend.
-            await currentUserRef.update({
-                friendIds: arrayUnion(requestingUserId)
-            });
+        const batch = db.batch();
+        
+        batch.update(currentUserRef, {
+            friendIds: arrayUnion(requestingUserId),
+            pendingFriendRequests: arrayRemove(requestingUserId)
+        });
+        
+        batch.update(requestingUserRef, {
+            friendIds: arrayUnion(currentUserId),
+            sentFriendRequests: arrayRemove(currentUserId)
+        });
+        
+        await batch.commit();
 
-            // Send notification back to the original sender
-            const currentUserData = await this.getUserProfileById(currentUserId);
-            if (!currentUserData) return;
-            
-            const notificationData = {
-                type: 'friend_request_approved',
-                user: { id: currentUserData.id, name: currentUserData.name, username: currentUserData.username, avatarUrl: currentUserData.avatarUrl },
-                createdAt: serverTimestamp(),
-                read: false,
-            };
-            await db.collection('users').doc(requestingUserId).collection('notifications').add(notificationData);
-        } catch (error) {
-            console.error("Error accepting friend request:", error);
-        }
+        const currentUserData = await this.getUserProfileById(currentUserId);
+        if (!currentUserData) return;
+        
+        const notificationData = {
+            type: 'friend_request_approved',
+            user: { id: currentUserData.id, name: currentUserData.name, username: currentUserData.username, avatarUrl: currentUserData.avatarUrl },
+            createdAt: serverTimestamp(),
+            read: false,
+        };
+        await db.collection('users').doc(requestingUserId).collection('notifications').add(notificationData);
     },
 
     async declineFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
-        const requestId = `${requestingUserId}_${currentUserId}`;
-        const requestRef = db.collection('friendRequests').doc(requestId);
-        try {
-            // Delete the request document entirely
-            await requestRef.delete();
-        } catch (error) {
-            console.error("Error declining friend request:", error);
-        }
+        const currentUserRef = db.collection('users').doc(currentUserId);
+        const requestingUserRef = db.collection('users').doc(requestingUserId);
+        
+        const batch = db.batch();
+        batch.update(currentUserRef, { pendingFriendRequests: arrayRemove(requestingUserId) });
+        batch.update(requestingUserRef, { sentFriendRequests: arrayRemove(currentUserId) });
+        
+        await batch.commit();
     },
 
     listenToFriends(userId: string, callback: (friends: User[]) => void) {
@@ -429,7 +379,6 @@ export const firebaseService = {
     listenToFeedPosts(currentUserId: string, callback: (posts: Post[]) => void) {
         const q = db.collection('posts').orderBy('createdAt', 'desc').limit(50);
         return q.onSnapshot(async (snapshot) => {
-            // Get user's friend list and blocked list for accurate filtering
             const userDoc = await db.collection('users').doc(currentUserId).get();
             const friendIds = userDoc.exists ? userDoc.data()!.friendIds || [] : [];
             const blockedUserIds = userDoc.exists ? userDoc.data()!.blockedUserIds || [] : [];
@@ -438,17 +387,9 @@ export const firebaseService = {
     
             const filtered = feedPosts.filter(p => {
                 if (!p.author || !p.author.id) return false;
-    
-                // Don't show posts from users the current user has blocked.
                 if (blockedUserIds.includes(p.author.id)) return false;
-    
-                // Show the user's own posts
                 if (p.author.id === currentUserId) return true;
-    
-                // Show public posts
                 if (p.author.privacySettings?.postVisibility === 'public') return true;
-    
-                // Show friends' posts if visibility is set to 'friends'
                 if (friendIds.includes(p.author.id) && p.author.privacySettings?.postVisibility === 'friends') return true;
     
                 return false;
@@ -465,7 +406,7 @@ export const firebaseService = {
         return q.onSnapshot((snapshot) => {
             const explorePosts = snapshot.docs
                 .map(docToPost)
-                .filter(post => post.author.id !== currentUserId && !post.isSponsored); // Filter client-side
+                .filter(post => post.author.id !== currentUserId && !post.isSponsored);
             callback(explorePosts);
         });
     },
@@ -536,7 +477,6 @@ export const firebaseService = {
 
         const userId = user.id;
 
-        // Handle file upload (photo/video) via Cloudinary
         if (media.mediaFile) {
             const { url, type } = await uploadMediaToCloudinary(media.mediaFile, `post_${userId}_${Date.now()}`);
             if (type === 'video') {
@@ -546,14 +486,12 @@ export const firebaseService = {
             }
         }
         
-        // Handle AI generated image (base64 data URL)
         if (media.generatedImageBase64) {
             const blob = await fetch(media.generatedImageBase64).then(res => res.blob());
             const { url } = await uploadMediaToCloudinary(blob, `post_ai_${userId}_${Date.now()}.jpeg`);
             postToSave.imageUrl = url;
         }
 
-        // Handle audio blob URL
         if (media.audioBlobUrl) {
             const audioBlob = await fetch(media.audioBlobUrl).then(r => r.blob());
             const { url } = await uploadMediaToCloudinary(audioBlob, `post_audio_${userId}_${Date.now()}.webm`);
@@ -572,8 +510,6 @@ export const firebaseService = {
             }
 
             const postData = postDoc.data() as Post;
-
-            // Security check: only the author can delete the post
             if (postData.author.id !== userId) {
                 console.error("Permission denied: User is not the author of the post.");
                 return false;
@@ -596,16 +532,13 @@ export const firebaseService = {
                 if (!postDoc.exists) throw "Post does not exist!";
     
                 const postData = postDoc.data() as Post;
-                // New data structure: { [userId]: emoji }
                 const reactions = { ...(postData.reactions || {}) };
                 
                 const userPreviousReaction = reactions[userId];
     
                 if (userPreviousReaction === newReaction) {
-                    // User is toggling off their reaction.
                     delete reactions[userId];
                 } else {
-                    // User is adding a new reaction or changing their existing one.
                     reactions[userId] = newReaction;
                 }
                 
@@ -636,10 +569,8 @@ export const firebaseService = {
                 const userPreviousReaction = reactions[userId];
     
                 if (userPreviousReaction === newReaction) {
-                    // Toggling off
                     delete reactions[userId];
                 } else {
-                    // Adding or changing reaction
                     reactions[userId] = newReaction;
                 }
                 
@@ -663,7 +594,7 @@ export const firebaseService = {
         const postRef = db.collection('posts').doc(postId);
     
         const newComment: any = {
-            id: db.collection('posts').doc().id, // Pre-generate ID for file naming
+            id: db.collection('posts').doc().id,
             postId,
             author: {
                 id: user.id, name: user.name, username: user.username, avatarUrl: user.avatarUrl,
@@ -734,9 +665,8 @@ export const firebaseService = {
                 const comments = [...postData.comments] || [];
                 const commentIndex = comments.findIndex(c => c.id === commentId);
 
-                if (commentIndex === -1) return; // Comment already deleted
+                if (commentIndex === -1) return;
 
-                // Soft delete
                 comments[commentIndex].isDeleted = true;
                 comments[commentIndex].text = undefined;
                 comments[commentIndex].audioUrl = undefined;

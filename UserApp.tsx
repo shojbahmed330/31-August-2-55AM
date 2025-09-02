@@ -178,7 +178,7 @@ const UserApp: React.FC = () => {
   const viewerPostUnsubscribe = useRef<(() => void) | null>(null);
   const currentView = viewStack[viewStack.length - 1];
   const unreadNotificationCount = notifications.filter(n => !n.read).length;
-  const friendRequestCount = (currentView?.props?.requests as User[] || []).length; // Used for badge on sidebar
+  const friendRequestCount = user?.pendingFriendRequests?.length || 0;
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -197,37 +197,65 @@ const UserApp: React.FC = () => {
     setIsLoadingViewerPost(false);
   }, []);
 
-  useEffect(() => {
-    let unsubscribePosts = () => {};
-    let unsubscribeReelsPosts = () => {};
-    let unsubscribeFriends = () => {};
-    let unsubscribeNotifications = () => {};
-    let activityInterval: number | null = null;
+  const handleLogout = useCallback(() => {
+    firebaseService.signOutUser();
+    setUser(null);
+    setPosts([]);
+    setFriends([]);
+    setGroups([]);
+    setNotifications([]);
+    setViewStack([{ view: AppView.AUTH }]);
+  }, []);
 
-    const unsubscribeAuth = firebaseService.onAuthStateChanged(async (userProfile) => {
+  useEffect(() => {
+    let unsubscribePosts: () => void = () => {};
+    let unsubscribeReelsPosts: () => void = () => {};
+    let unsubscribeFriends: () => void = () => {};
+    let unsubscribeNotifications: () => void = () => {};
+    let unsubscribeUserDoc: () => void = () => {};
+
+    const unsubscribeAuth = firebaseService.onAuthStateChanged(async (userAuth) => {
+        // Clear all previous listeners when auth state changes
         unsubscribePosts();
         unsubscribeReelsPosts();
         unsubscribeFriends();
         unsubscribeNotifications();
-        if (activityInterval) clearInterval(activityInterval);
+        unsubscribeUserDoc();
 
-        if (userProfile) {
-            setUser(userProfile);
-            if (!initialDeepLink) {
-                setTtsMessage(getTtsPrompt('login_success', language, { name: userProfile.name }));
-            }
+        if (userAuth) {
+            let isFirstLoad = true;
+            // FIX: The userAuth object from onAuthStateChanged has an 'id' property, not 'uid'.
+            unsubscribeUserDoc = firebaseService.listenToCurrentUser(userAuth.id, (userProfile) => {
+                if (userProfile && !userProfile.isDeactivated && !userProfile.isBanned) {
+                    setUser(userProfile);
 
-            if (initialDeepLink) {
-                setViewStack([initialDeepLink]);
-                setInitialDeepLink(null); // Consume deep link
-            } else if (currentView?.view === AppView.AUTH) {
-                setViewStack([{ view: AppView.FEED }]);
-            }
+                    if (isFirstLoad) {
+                         if (!initialDeepLink) {
+                            setTtsMessage(getTtsPrompt('login_success', language, { name: userProfile.name }));
+                        }
+                        if (initialDeepLink) {
+                            setViewStack([initialDeepLink]);
+                            setInitialDeepLink(null);
+                        } else if (currentView?.view === AppView.AUTH) {
+                            setViewStack([{ view: AppView.FEED }]);
+                        }
+                        isFirstLoad = false;
+                    }
+                } else {
+                    // FIX: The userAuth object from onAuthStateChanged has an 'id' property, not 'uid'.
+                    if (userProfile?.isDeactivated) console.log(`User ${userAuth.id} is deactivated. Signing out.`);
+                    // FIX: The userAuth object from onAuthStateChanged has an 'id' property, not 'uid'.
+                    if (userProfile?.isBanned) console.log(`User ${userAuth.id} is banned. Signing out.`);
+                    handleLogout();
+                }
+                setIsAuthLoading(false);
+            });
 
-            // Set up real-time listeners
+            // Set up other real-time listeners that depend on the user's existence
             setIsLoadingFeed(true);
             setIsLoadingReels(true);
-            unsubscribePosts = firebaseService.listenToFeedPosts(userProfile.id, (feedPosts) => {
+            // FIX: The userAuth object from onAuthStateChanged has an 'id' property, not 'uid'.
+            unsubscribePosts = firebaseService.listenToFeedPosts(userAuth.id, (feedPosts) => {
                 setPosts(feedPosts);
                 setIsLoadingFeed(false);
             });
@@ -235,27 +263,24 @@ const UserApp: React.FC = () => {
                 setReelsPosts(newReelsPosts);
                 setIsLoadingReels(false);
             });
-            unsubscribeFriends = firebaseService.listenToFriends(userProfile.id, (friendsList) => {
+            // FIX: The userAuth object from onAuthStateChanged has an 'id' property, not 'uid'.
+            unsubscribeFriends = firebaseService.listenToFriends(userAuth.id, (friendsList) => {
                 setFriends(friendsList);
             });
-            unsubscribeNotifications = firebaseService.listenToNotifications(userProfile.id, (newNotifications) => {
+            // FIX: The userAuth object from onAuthStateChanged has an 'id' property, not 'uid'.
+            unsubscribeNotifications = firebaseService.listenToNotifications(userAuth.id, (newNotifications) => {
                 setNotifications(newNotifications);
             });
-            // Set up user activity tracking
-            // NOTE: Temporarily disabled due to Firestore security rule constraints which cause console errors.
-            // firebaseService.updateUserLastActive(userProfile.id); // Update immediately
-            // activityInterval = window.setInterval(() => {
-            //     firebaseService.updateUserLastActive(userProfile.id);
-            // }, 60 * 1000); // Update every 60 seconds
         } else {
+            // User logged out
             setUser(null);
             setPosts([]);
             setReelsPosts([]);
             setFriends([]);
             setNotifications([]);
             setViewStack([{ view: AppView.AUTH }]);
+            setIsAuthLoading(false);
         }
-        setIsAuthLoading(false);
     });
 
     return () => {
@@ -264,10 +289,10 @@ const UserApp: React.FC = () => {
         unsubscribeReelsPosts();
         unsubscribeFriends();
         unsubscribeNotifications();
-        if (activityInterval) clearInterval(activityInterval);
+        unsubscribeUserDoc();
         handleClosePhotoViewer();
     };
-  }, [currentView?.view, initialDeepLink, language, handleClosePhotoViewer]);
+  }, [currentView?.view, initialDeepLink, language, handleClosePhotoViewer, handleLogout]);
 
   useEffect(() => {
     setTtsMessage(getTtsPrompt('welcome', language));
@@ -377,16 +402,6 @@ const UserApp: React.FC = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-  
-  const handleLogout = () => {
-    firebaseService.signOutUser();
-    setUser(null);
-    setPosts([]);
-    setFriends([]);
-    setGroups([]);
-    setNotifications([]);
-    setViewStack([{ view: AppView.AUTH }]);
-  };
   
   const handleToggleNotifications = async () => {
       const isOpen = !isNotificationPanelOpen;
