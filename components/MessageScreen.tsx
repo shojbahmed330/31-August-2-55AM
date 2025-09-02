@@ -415,7 +415,8 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
                             <p className="font-semibold text-rose-400 text-sm">Replying to {replyingTo.senderId === currentUser.id ? 'yourself' : recipientUser.name}</p>
                             <button onClick={() => setReplyingTo(null)} className="p-1"><Icon name="close" className="w-4 h-4" /></button>
                         </div>
-                        <p className="text-sm opacity-80 truncate">{geminiService.createReplySnippet(replyingTo)}</p>
+                        {/* FIX: Render the 'content' property of the ReplyInfo object, not the object itself. */}
+                        <p className="text-sm opacity-80 truncate">{geminiService.createReplySnippet(replyingTo).content}</p>
                     </div>
                 )}
                 {mediaPreview && (

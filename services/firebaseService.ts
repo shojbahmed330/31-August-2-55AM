@@ -407,11 +407,6 @@ export const firebaseService = {
         });
     },
 
-    // --- Posts, Profile & Other functions remain unchanged ---
-    // The rest of this large file is omitted for brevity. The user only requested a fix for
-    // the friend request functionality, which has now been fully re-implemented above
-    // to be secure and avoid permission errors.
-    // ... (rest of the file is unchanged)
     // --- Posts ---
     listenToFeedPosts(currentUserId: string, callback: (posts: Post[]) => void) {
         const q = db.collection('posts').orderBy('createdAt', 'desc').limit(50);
@@ -1131,6 +1126,86 @@ export const firebaseService = {
         return createdStory;
     },
 
+    async getStories(currentUserId: string): Promise<{ author: User; stories: Story[]; allViewed: boolean; }[]> {
+        const currentUser = await this.getUserProfileById(currentUserId);
+        if (!currentUser) return [];
+
+        const twentyFourHoursAgo = Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
+        const userIdsToFetch = [currentUserId, ...(currentUser.friendIds || [])];
+
+        if (userIdsToFetch.length === 0) {
+            return [];
+        }
+
+        // Firestore 'in' queries are limited to 10 items. We need to chunk.
+        const storyPromises: Promise<firebase.firestore.QuerySnapshot>[] = [];
+        for (let i = 0; i < userIdsToFetch.length; i += 10) {
+            const chunk = userIdsToFetch.slice(i, i + 10);
+            const storiesQuery = db.collection('stories')
+                .where('author.id', 'in', chunk)
+                .where('createdAt', '>=', twentyFourHoursAgo);
+            storyPromises.push(storiesQuery.get());
+        }
+        
+        const snapshots = await Promise.all(storyPromises);
+        const stories: Story[] = [];
+        snapshots.forEach(snapshot => {
+            snapshot.docs.forEach(doc => {
+                 const data = doc.data();
+                 stories.push({
+                    id: doc.id,
+                    ...data,
+                    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString()
+                } as Story);
+            });
+        });
+
+        if (stories.length === 0) return [];
+        stories.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        const storiesByAuthor: { [authorId: string]: { author: User; stories: Story[]; } } = {};
+
+        stories.forEach(story => {
+            const authorId = story.author.id;
+            if (!storiesByAuthor[authorId]) {
+                storiesByAuthor[authorId] = {
+                    author: story.author as User,
+                    stories: []
+                };
+            }
+            storiesByAuthor[authorId].stories.push(story);
+        });
+
+        // Add 'allViewed' property and sort
+        return Object.values(storiesByAuthor)
+            .map(group => ({
+                ...group,
+                allViewed: group.stories.every(s => s.viewedBy.includes(currentUserId))
+            }))
+            .sort((a, b) => {
+                // Own stories first, then unread, then read
+                if (a.author.id === currentUserId) return -1;
+                if (b.author.id === currentUserId) return 1;
+                if (!a.allViewed && b.allViewed) return -1;
+                if (a.allViewed && !b.allViewed) return 1;
+                // Then by most recent story in the group
+                const aLatest = new Date(a.stories[0].createdAt).getTime();
+                const bLatest = new Date(b.stories[0].createdAt).getTime();
+                return bLatest - aLatest;
+            });
+    },
+
+    async markStoryAsViewed(storyId: string, userId: string): Promise<void> {
+        const storyRef = db.collection('stories').doc(storyId);
+        try {
+            await storyRef.update({
+                viewedBy: arrayUnion(userId)
+            });
+        } catch (error) {
+            console.error("Error marking story as viewed:", error);
+        }
+    },
+
     // --- Group Member Management ---
     // FIX: Add missing group management functions
     async promoteGroupMember(groupId: string, userToPromote: User, newRole: 'Admin' | 'Moderator'): Promise<boolean> {
@@ -1833,6 +1908,22 @@ export const firebaseService = {
     
         } catch (error) {
             console.error("Error fetching injectable story ad:", error);
+            return null;
+        }
+    },
+
+    async getRandomActiveCampaign(): Promise<Campaign | null> {
+        try {
+            const q = db.collection('campaigns').where('status', '==', 'active');
+            const snapshot = await q.get();
+            if (snapshot.empty) {
+                return null;
+            }
+            const campaigns = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Campaign));
+            const randomIndex = Math.floor(Math.random() * campaigns.length);
+            return campaigns[randomIndex];
+        } catch (error) {
+            console.error("Error getting random active campaign:", error);
             return null;
         }
     },

@@ -297,13 +297,6 @@ export const geminiService = {
       return MOCK_MUSIC_LIBRARY;
   },
 
-  // ... other functions remain unchanged
-  // The rest of this large file is omitted for brevity, as the only required change is in the Friends section above.
-  // The user only requested to fix the friend request functionality.
-  // Assume all other functions for Posts, Comments, Messages, Groups, Stories, Ads, Admin, etc., are correct and do not need to be changed.
-  // It is critical to only update the friend-related functions as requested.
-  // ... (rest of the file is unchanged)
-
   // --- Mocks & Simulations ---
   
   // --- This is a mock/simulated function ---
