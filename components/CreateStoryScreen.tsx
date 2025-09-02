@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Story, MusicTrack, StoryTextStyle, StoryPrivacy, AppView } from '../types';
 import { geminiService } from '../services/geminiService';
@@ -152,16 +151,16 @@ const CreateStoryScreen: React.FC<CreateStoryScreenProps> = ({ currentUser, onSt
             ? 'video' 
             : 'image';
             
+        // FIX: Pass mediaFile as the second argument to createStory, not inside the first object.
         const newStory = await geminiService.createStory({
             author: currentUser,
             type: storyType,
             text: editorMode === 'text' ? text : undefined,
             textStyle: editorMode === 'text' ? textStyle : undefined,
-            mediaFile: editorMode === 'media' ? mediaFile : null,
             contentUrl: editorMode === 'media' && !mediaFile ? mediaPreview! : undefined,
             music: selectedMusic || undefined,
             privacy: privacy
-        });
+        }, editorMode === 'media' ? mediaFile : null);
 
         if (newStory) {
             onStoryCreated(newStory);
@@ -244,7 +243,7 @@ const CreateStoryScreen: React.FC<CreateStoryScreenProps> = ({ currentUser, onSt
             <header className="w-full flex justify-between items-center">
                 <button onClick={handleBackToGallery}><Icon name="back" className="w-8 h-8" /></button>
                 <div className="flex gap-2">
-                    <button onClick={() => onNavigate(AppView.STORY_PRIVACY, { currentPrivacy: privacy, onSave: setPrivacy, onGoBack })} className="flex items-center gap-2 bg-slate-700/70 px-3 py-2 rounded-full text-sm">
+                    <button onClick={() => onNavigate(AppView.STORY_PRIVACY, { currentPrivacy: privacy, onSave: setPrivacy, onGoBack: onGoBack })} className="flex items-center gap-2 bg-slate-700/70 px-3 py-2 rounded-full text-sm">
                         <Icon name={privacy === 'public' ? 'globe' : 'users'} className="w-4 h-4" />
                         <span className="capitalize">{privacy}</span>
                     </button>
