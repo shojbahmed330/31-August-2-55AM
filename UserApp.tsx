@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story } from './types';
 import AuthScreen from './components/AuthScreen';
@@ -235,7 +237,11 @@ const UserApp: React.FC = () => {
                     setUser(userProfile);
 
                     if (isFirstLoad) {
-                         await firebaseService.processAcceptedFriendRequests(userAuth.id);
+                        try {
+                            await firebaseService.processAcceptedFriendRequests(userAuth.id);
+                        } catch (error) {
+                            console.error("Error during post-login friendship processing:", error);
+                        }
                          if (!initialDeepLink) {
                             setTtsMessage(getTtsPrompt('login_success', language, { name: userProfile.name }));
                         }

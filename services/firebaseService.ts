@@ -300,15 +300,19 @@ export const firebaseService = {
     async acceptFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
         const currentUserRef = db.collection('users').doc(currentUserId);
         const requestDocRef = db.collection('friendRequests').doc(`${requestingUserId}_${currentUserId}`);
-
+    
         const batch = db.batch();
-
+    
         try {
+            // Step 1: Acceptor (currentUser) adds requester to their friend list for immediate UI update.
             batch.update(currentUserRef, { friendIds: arrayUnion(requestingUserId) });
+            
+            // Step 2: Mark the request as 'accepted' so the requester can sync up on their next login.
             batch.update(requestDocRef, { status: 'accepted' });
+    
             await batch.commit();
         } catch (error) {
-            console.error("FirebaseError on acceptFriendRequest:", error);
+            console.error("FATAL: Failed to accept friend request. This is likely a Firestore security rule issue.", error);
             throw error;
         }
     },
@@ -395,6 +399,7 @@ export const firebaseService = {
             await batch.commit();
         } catch (error) {
             console.error("Error processing accepted friend requests:", error);
+            throw error;
         }
     },
 

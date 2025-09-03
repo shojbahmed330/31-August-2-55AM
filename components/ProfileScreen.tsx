@@ -92,7 +92,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     });
     
     return () => unsubscribe();
-  }, [username, currentUser.id, language, onSetTtsMessage, isLoading]);
+  }, [username, currentUser.id, language, onSetTtsMessage]);
 
   // Effect to fetch derived data (posts, friends list) when profileUser updates
   useEffect(() => {
@@ -230,7 +230,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const handleDragLeave = (e: React.DragEvent<HTMLElement>, type: 'avatar' | 'cover') => {
       e.preventDefault();
-      setDragState(prev => ({ ...prev, [type === 'avatar' ? 'isOverAvatar' : 'isOverCover']: false }));
+      setDragState(prev => ({ ...prev, [type === 'avatar' ? 'isOverAvatar' : 'isOverCover']: true }));
   };
 
   const handleDrop = (e: React.DragEvent<HTMLElement>, type: 'avatar' | 'cover') => {
