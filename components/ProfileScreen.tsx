@@ -9,6 +9,8 @@ import ImageCropper from './ImageCropper';
 import { useSettings } from '../contexts/SettingsContext';
 import { t } from '../i18n';
 import UserCard from './UserCard';
+import { db } from '../services/firebaseConfig';
+
 
 interface ProfileScreenProps {
   username: string;
@@ -54,6 +56,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [friendsList, setFriendsList] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [friendshipStatus, setFriendshipStatus] = useState<FriendshipStatus>(FriendshipStatus.NOT_FRIENDS);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
   const [activeTab, setActiveTab] = useState<'posts' | 'about' | 'friends'>('posts');
   
   const [currentPostIndex, setCurrentPostIndex] = useState(0);
@@ -101,17 +104,44 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   }, [fetchProfile]);
 
   useEffect(() => {
-    if (profileUser && currentUser) {
-        if (currentUser.friendIds?.includes(profileUser.id)) {
-            setFriendshipStatus(FriendshipStatus.FRIENDS);
-        } else if (currentUser.sentFriendRequests?.includes(profileUser.id)) {
-            setFriendshipStatus(FriendshipStatus.REQUEST_SENT);
-        } else if (currentUser.pendingFriendRequests?.includes(profileUser.id)) {
-            setFriendshipStatus(FriendshipStatus.PENDING_APPROVAL);
-        } else {
-            setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
-        }
+    if (!profileUser || !currentUser || profileUser.id === currentUser.id) {
+      setIsLoadingStatus(false);
+      return;
     }
+
+    const checkStatus = async () => {
+      setIsLoadingStatus(true);
+      // 1. Check if friends
+      if (currentUser.friendIds?.includes(profileUser.id)) {
+        setFriendshipStatus(FriendshipStatus.FRIENDS);
+        setIsLoadingStatus(false);
+        return;
+      }
+
+      // 2. Check for outgoing request from current user to profile user
+      const sentRequestRef = db.collection('friendRequests').doc(`${currentUser.id}_${profileUser.id}`);
+      const sentSnap = await sentRequestRef.get();
+      if (sentSnap.exists) {
+        setFriendshipStatus(FriendshipStatus.REQUEST_SENT);
+        setIsLoadingStatus(false);
+        return;
+      }
+
+      // 3. Check for incoming request from profile user to current user
+      const receivedRequestRef = db.collection('friendRequests').doc(`${profileUser.id}_${currentUser.id}`);
+      const receivedSnap = await receivedRequestRef.get();
+      if (receivedSnap.exists) {
+        setFriendshipStatus(FriendshipStatus.PENDING_APPROVAL);
+        setIsLoadingStatus(false);
+        return;
+      }
+
+      // 4. Not friends
+      setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
+      setIsLoadingStatus(false);
+    };
+
+    checkStatus();
   }, [profileUser, currentUser]);
 
   useEffect(() => {
@@ -251,23 +281,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         const intentResponse = await geminiService.processIntent(command, context);
         
         switch (intentResponse.intent) {
-          // FIX: The call to `addFriend` was missing the current user's ID and the state update was incorrect.
-          // Both issues have been resolved to align with the behavior of the "Add Friend" button.
           case 'intent_add_friend':
             if (profileUser.id !== currentUser.id) {
-                const result = await geminiService.addFriend(currentUser.id, profileUser.id);
-                if (result.success) {
-                  // Optimistically update the UI to show the request has been sent.
-                  setFriendshipStatus(FriendshipStatus.REQUEST_SENT);
-                  onSetTtsMessage(getTtsPrompt('friend_request_sent', language, {name: profileUser.name}));
-                } else if(result.reason === 'friends_of_friends'){
-                  onSetTtsMessage(getTtsPrompt('friend_request_privacy_block', language, {name: profileUser.name}));
-                } else {
-                  onSetTtsMessage("Failed to send friend request. Please check your permissions or try again later.");
-                }
+                handleAddFriendAction();
             }
             break;
-          // ... other cases ...
         }
     } catch (error) {
         console.error("Error processing command in ProfileScreen:", error);
@@ -275,7 +293,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     } finally {
         onCommandProcessed();
     }
-  }, [profileUser, currentUser.id, onCommandProcessed, onSetTtsMessage, language]);
+  }, [profileUser, currentUser.id, onCommandProcessed, onSetTtsMessage, language, handleAddFriendAction]);
 
   useEffect(() => {
     if (lastCommand) {
@@ -302,6 +320,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const renderActionButtons = () => {
     if (!profileUser || currentUser.id === profileUser.id) return null;
+    if (isLoadingStatus) {
+        return <div className="h-10 w-56 bg-slate-700 animate-pulse rounded-lg" />;
+    }
 
     const baseClasses = "flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50";
 
@@ -410,13 +431,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                                     {t(language, 'profile.editProfile')}
                                 </button>
                             ) : (
-                                <>
+                                <div className="flex items-center gap-2">
                                     {renderActionButtons()}
                                      <button onClick={() => onStartMessage(profileUser)} className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors bg-sky-600 text-white hover:bg-sky-500">
                                          <Icon name="message" className="w-5 h-5"/>
                                          {t(language, 'profile.message')}
                                     </button>
-                                </>
+                                </div>
                             )}
                         </div>
                     </div>

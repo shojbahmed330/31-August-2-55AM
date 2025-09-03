@@ -8,6 +8,7 @@ import { useSettings } from '../contexts/SettingsContext';
 
 interface FriendsScreenProps {
   currentUser: User;
+  requests: User[];
   onSetTtsMessage: (message: string) => void;
   lastCommand: string | null;
   onOpenProfile: (username: string) => void;
@@ -20,9 +21,8 @@ interface FriendsScreenProps {
 
 type ActiveTab = 'requests' | 'suggestions' | 'all_friends';
 
-const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, onSetTtsMessage, lastCommand, onOpenProfile, scrollState, onCommandProcessed, onNavigate, onGoBack, initialTab }) => {
+const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, onSetTtsMessage, lastCommand, onOpenProfile, scrollState, onCommandProcessed, onNavigate, onGoBack, initialTab }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab || 'requests');
-  const [requests, setRequests] = useState<User[]>([]);
   const [suggestions, setSuggestions] = useState<User[]>([]);
   const [allFriends, setAllFriends] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,19 +32,18 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, onSetTtsMess
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
-    const [reqs, suggs, friends] = await Promise.all([
-      geminiService.getFriendRequests(currentUser.id),
+    // Requests are now passed via props, so we only fetch suggestions and friends list here.
+    const [suggs, friends] = await Promise.all([
       geminiService.getRecommendedFriends(currentUser.id),
       geminiService.getFriendsList(currentUser.id),
     ]);
-    setRequests(reqs);
     setSuggestions(suggs);
     setAllFriends(friends);
     setIsLoading(false);
     
     // If no initial tab is provided, default based on data
     if (!initialTab) {
-        if (reqs.length > 0) {
+        if (requests.length > 0) {
             setActiveTab('requests');
         } else if (suggs.length > 0) {
             setActiveTab('suggestions');
@@ -53,7 +52,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, onSetTtsMess
         }
     }
 
-  }, [currentUser.id, initialTab]);
+  }, [currentUser.id, initialTab, requests.length]);
 
   useEffect(() => {
     fetchData();
@@ -86,14 +85,14 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, onSetTtsMess
   const handleAccept = useCallback(async (requestingUser: User) => {
     await geminiService.acceptFriendRequest(currentUser.id, requestingUser.id);
     onSetTtsMessage(getTtsPrompt('friend_request_accepted', language, { name: requestingUser.name }));
-    fetchData(); // Refresh all lists
-  }, [currentUser.id, fetchData, onSetTtsMessage, language]);
+    // No need to call fetchData(), the real-time listener in UserApp will update the requests prop automatically.
+  }, [currentUser.id, onSetTtsMessage, language]);
   
   const handleDecline = useCallback(async (requestingUser: User) => {
     await geminiService.declineFriendRequest(currentUser.id, requestingUser.id);
     onSetTtsMessage(getTtsPrompt('friend_request_declined', language, { name: requestingUser.name }));
-    fetchData(); // Refresh all lists
-  }, [currentUser.id, fetchData, onSetTtsMessage, language]);
+     // No need to call fetchData(), the real-time listener in UserApp will update the requests prop automatically.
+  }, [currentUser.id, onSetTtsMessage, language]);
   
   const handleAddFriend = useCallback(async (targetUser: User) => {
     const result = await geminiService.addFriend(currentUser.id, targetUser.id);

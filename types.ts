@@ -55,8 +55,6 @@ export interface User {
   // Friends list
   onlineStatus?: 'online' | 'offline';
   friendIds?: string[];
-  pendingFriendRequests?: string[];
-  sentFriendRequests?: string[];
 }
 
 export interface Author {

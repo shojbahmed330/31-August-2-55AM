@@ -145,6 +145,7 @@ const UserApp: React.FC = () => {
   const [globalAuthError, setGlobalAuthError] = useState('');
   
   const [friends, setFriends] = useState<User[]>([]);
+  const [friendRequests, setFriendRequests] = useState<User[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [reelsPosts, setReelsPosts] = useState<Post[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -178,7 +179,7 @@ const UserApp: React.FC = () => {
   const viewerPostUnsubscribe = useRef<(() => void) | null>(null);
   const currentView = viewStack[viewStack.length - 1];
   const unreadNotificationCount = notifications.filter(n => !n.read).length;
-  const friendRequestCount = user?.pendingFriendRequests?.length || 0;
+  const friendRequestCount = friendRequests.length;
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -202,6 +203,7 @@ const UserApp: React.FC = () => {
     setUser(null);
     setPosts([]);
     setFriends([]);
+    setFriendRequests([]);
     setGroups([]);
     setNotifications([]);
     setViewStack([{ view: AppView.AUTH }]);
@@ -211,6 +213,7 @@ const UserApp: React.FC = () => {
     let unsubscribePosts: () => void = () => {};
     let unsubscribeReelsPosts: () => void = () => {};
     let unsubscribeFriends: () => void = () => {};
+    let unsubscribeFriendRequests: () => void = () => {};
     let unsubscribeNotifications: () => void = () => {};
     let unsubscribeUserDoc: () => void = () => {};
 
@@ -219,6 +222,7 @@ const UserApp: React.FC = () => {
         unsubscribePosts();
         unsubscribeReelsPosts();
         unsubscribeFriends();
+        unsubscribeFriendRequests();
         unsubscribeNotifications();
         unsubscribeUserDoc();
 
@@ -267,6 +271,9 @@ const UserApp: React.FC = () => {
             unsubscribeFriends = firebaseService.listenToFriends(userAuth.id, (friendsList) => {
                 setFriends(friendsList);
             });
+            unsubscribeFriendRequests = firebaseService.listenToFriendRequests(userAuth.id, (requests) => {
+                setFriendRequests(requests);
+            });
             // FIX: The userAuth object from onAuthStateChanged has an 'id' property, not 'uid'.
             unsubscribeNotifications = firebaseService.listenToNotifications(userAuth.id, (newNotifications) => {
                 setNotifications(newNotifications);
@@ -277,6 +284,7 @@ const UserApp: React.FC = () => {
             setPosts([]);
             setReelsPosts([]);
             setFriends([]);
+            setFriendRequests([]);
             setNotifications([]);
             setViewStack([{ view: AppView.AUTH }]);
             setIsAuthLoading(false);
@@ -288,6 +296,7 @@ const UserApp: React.FC = () => {
         unsubscribePosts();
         unsubscribeReelsPosts();
         unsubscribeFriends();
+        unsubscribeFriendRequests();
         unsubscribeNotifications();
         unsubscribeUserDoc();
         handleClosePhotoViewer();
@@ -822,7 +831,7 @@ const UserApp: React.FC = () => {
       case AppView.POST_DETAILS:
         return <PostDetailScreen {...commonScreenProps} postId={currentView.props.postId} newlyAddedCommentId={currentView.props.newlyAddedCommentId} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment} onPostComment={handlePostComment} onEditComment={handleEditComment} onDeleteComment={handleDeleteComment} />;
       case AppView.FRIENDS:
-        return <FriendsScreen {...commonScreenProps} />;
+        return <FriendsScreen {...commonScreenProps} requests={friendRequests} />;
       case AppView.SEARCH_RESULTS:
         return <SearchResultsScreen {...commonScreenProps} results={searchResults} query={currentView.props.query} />;
       case AppView.SETTINGS:

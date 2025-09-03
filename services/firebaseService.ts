@@ -153,8 +153,6 @@ export const firebaseService = {
                     blockedUserIds: [],
                     voiceCoins: 100,
                     friendIds: [],
-                    pendingFriendRequests: [],
-                    sentFriendRequests: [],
                     createdAt: serverTimestamp(),
                 };
                 
@@ -333,6 +331,18 @@ export const firebaseService = {
         const requestDocRef = db.collection('friendRequests').doc(`${requestingUserId}_${currentUserId}`);
         // শুধু রিকোয়েস্ট ডকুমেন্টটি ডিলিট করে দেওয়া
         await requestDocRef.delete();
+    },
+
+    listenToFriendRequests(userId: string, callback: (requestingUsers: User[]) => void) {
+        const q = db.collection('friendRequests')
+            .where('to.id', '==', userId)
+            .where('status', '==', 'pending')
+            .orderBy('createdAt', 'desc');
+        
+        return q.onSnapshot(snapshot => {
+            const requesters = snapshot.docs.map(doc => doc.data().from as User);
+            callback(requesters);
+        });
     },
 
     listenToFriends(userId: string, callback: (friends: User[]) => void) {
