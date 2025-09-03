@@ -526,7 +526,10 @@ export type Intent =
   | 'intent_reply_to_message'
   | 'intent_reply_to_last_message' // extracts 'message_content'
   | 'intent_react_to_last_message' // extracts 'emoji_type'
-  | 'intent_send_announcement'; // extracts 'message_content'
+  | 'intent_send_announcement' // extracts 'message_content'
+  // New Friendship Intents
+  | 'intent_unfriend_user' // extracts 'target_name'
+  | 'intent_cancel_friend_request'; // extracts 'target_name'
 
 
 export interface NLUResponse {

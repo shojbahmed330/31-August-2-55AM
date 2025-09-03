@@ -96,7 +96,9 @@
     "changeCover": "Change Cover",
     "changeAvatar": "Change profile picture",
     "dropToUpdateCover": "Drop to update cover photo",
-    "dropToUpdateAvatar": "Drop Image"
+    "dropToUpdateAvatar": "Drop Image",
+    "unfriend": "Unfriend",
+    "cancelRequest": "Cancel Request"
   },
   "settings": {
     "title": "Settings",
@@ -268,6 +270,8 @@
     "story_created": "Your story has been shared.",
     "lead_form_opened": "Please confirm your details to connect with the sponsor.",
     "lead_form_submitted": "Thank you! Your information has been sent.",
-    "lead_form_error": "Sorry, there was an error submitting your information."
+    "lead_form_error": "Sorry, there was an error submitting your information.",
+    "friend_removed": "{{name}} has been removed from your friends.",
+    "request_cancelled": "Friend request to {{name}} has been cancelled."
   }
 }

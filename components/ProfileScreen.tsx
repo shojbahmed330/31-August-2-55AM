@@ -53,6 +53,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [friendsList, setFriendsList] = useState<User[]>([]);
+  const [commonFriends, setCommonFriends] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [friendshipStatus, setFriendshipStatus] = useState<FriendshipStatus>(FriendshipStatus.NOT_FRIENDS);
   const [isLoadingStatus, setIsLoadingStatus] = useState(true);
@@ -93,6 +94,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             setFriendsList(friends);
         } else {
             setFriendsList([]);
+        }
+
+        if (user.id !== currentUser.id) {
+            const common = await geminiService.getCommonFriends(currentUser.id, user.id);
+            setCommonFriends(common);
+        } else {
+            setCommonFriends([]); // Clear for own profile
         }
 
         if (isInitialLoadRef.current) {
@@ -435,6 +443,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                         <div className="sm:pl-48 text-center sm:text-left">
                             <h2 className="text-3xl font-bold text-slate-100">{profileUser.name}</h2>
                             <p className="text-slate-400 mt-1">{profileUser.bio}</p>
+                            {!isOwnProfile && commonFriends.length > 0 && (
+                                <div className="mt-3 flex items-center gap-2 justify-center sm:justify-start">
+                                    <div className="flex -space-x-2">
+                                        {commonFriends.slice(0, 3).map(friend => (
+                                            <img key={friend.id} src={friend.avatarUrl} alt={friend.name} className="w-6 h-6 rounded-full border-2 border-slate-900" />
+                                        ))}
+                                    </div>
+                                    <p className="text-sm text-slate-400">
+                                        <span className="font-semibold text-slate-300">{commonFriends.length}</span> common friend{commonFriends.length > 1 ? 's' : ''}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                          <div className="flex justify-center sm:justify-end gap-3">
                             {isOwnProfile ? (

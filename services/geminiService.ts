@@ -131,6 +131,8 @@ let NLU_INTENT_LIST = `
 - intent_reply_to_last_message (extracts 'message_content')
 - intent_react_to_last_message (extracts 'emoji_type')
 - intent_send_announcement (extracts 'message_content')
+- intent_unfriend_user (extracts 'target_name')
+- intent_cancel_friend_request (extracts 'target_name')
 `;
 
 export const geminiService = {
@@ -218,6 +220,10 @@ export const geminiService = {
   async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> {
     return await firebaseService.addFriend(currentUserId, targetUserId);
   },
+
+  unfriendUser: (currentUserId: string, targetUserId: string) => firebaseService.unfriendUser(currentUserId, targetUserId),
+  
+  cancelFriendRequest: (currentUserId: string, targetUserId: string) => firebaseService.cancelFriendRequest(currentUserId, targetUserId),
   
   // --- This is a mock/simulated function ---
   async getRecommendedFriends(userId: string): Promise<User[]> {
@@ -242,6 +248,8 @@ export const geminiService = {
       }
       return await firebaseService.getUsersByIds(user.friendIds);
   },
+  
+  getCommonFriends: (userId1: string, userId2: string): Promise<User[]> => firebaseService.getCommonFriends(userId1, userId2),
   
   // --- Profile & Security ---
   async getUserById(userId: string): Promise<User | null> {

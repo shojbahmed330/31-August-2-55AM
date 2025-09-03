@@ -286,6 +286,33 @@ export const firebaseService = {
         }
     },
 
+    // FIX: Add missing 'unfriendUser' and 'cancelFriendRequest' methods.
+    async unfriendUser(currentUserId: string, targetUserId: string): Promise<boolean> {
+        const currentUserRef = db.collection('users').doc(currentUserId);
+        const targetUserRef = db.collection('users').doc(targetUserId);
+        try {
+            await db.runTransaction(async (transaction) => {
+                transaction.update(currentUserRef, { friendIds: arrayRemove(targetUserId) });
+                transaction.update(targetUserRef, { friendIds: arrayRemove(currentUserId) });
+            });
+            return true;
+        } catch (error) {
+            console.error("Error unfriending user:", error);
+            return false;
+        }
+    },
+
+    async cancelFriendRequest(currentUserId: string, targetUserId: string): Promise<boolean> {
+        const requestDocRef = db.collection('friendRequests').doc(`${currentUserId}_${targetUserId}`);
+        try {
+            await requestDocRef.delete();
+            return true;
+        } catch (error) {
+            console.error("Error cancelling friend request:", error);
+            return false;
+        }
+    },
+
     async getFriendRequests(userId: string): Promise<User[]> {
         const q = db.collection('friendRequests')
             .where('to.id', '==', userId)
@@ -402,6 +429,27 @@ export const firebaseService = {
                 callback([]);
             }
         });
+    },
+
+    async getCommonFriends(userId1: string, userId2: string): Promise<User[]> {
+        if (userId1 === userId2) return [];
+  
+        const [user1Doc, user2Doc] = await Promise.all([
+            this.getUserProfileById(userId1),
+            this.getUserProfileById(userId2)
+        ]);
+  
+        if (!user1Doc || !user2Doc || !user1Doc.friendIds || !user2Doc.friendIds) {
+            return [];
+        }
+  
+        const commonFriendIds = user1Doc.friendIds.filter(id => user2Doc.friendIds.includes(id));
+  
+        if (commonFriendIds.length === 0) {
+            return [];
+        }
+  
+        return this.getUsersByIds(commonFriendIds);
     },
 
     // --- Posts ---
