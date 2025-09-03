@@ -111,9 +111,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
     const checkStatus = async () => {
         setIsLoadingStatus(true);
-        const status = await firebaseService.checkFriendshipStatus(currentUser.id, profileUser.id);
-        setFriendshipStatus(status);
-        setIsLoadingStatus(false);
+        try {
+            const status = await firebaseService.checkFriendshipStatus(currentUser.id, profileUser.id);
+            setFriendshipStatus(status);
+        } catch (error) {
+            console.error("Failed to check friendship status:", error);
+            // Fallback to a default state so it doesn't get stuck loading and shows "Add Friend"
+            setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
+        } finally {
+            setIsLoadingStatus(false);
+        }
     };
 
     checkStatus();
