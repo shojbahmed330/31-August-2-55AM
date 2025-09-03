@@ -248,12 +248,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     setIsLoadingStatus(true);
     const result = await geminiService.addFriend(currentUser.id, profileUser.id);
     if (result.success) {
+        setFriendshipStatus(FriendshipStatus.REQUEST_SENT);
         onSetTtsMessage(getTtsPrompt('friend_request_sent', language, { name: profileUser.name }));
     } else if (result.reason === 'friends_of_friends') {
         onSetTtsMessage(getTtsPrompt('friend_request_privacy_block', language, { name: profileUser.name }));
     } else {
         onSetTtsMessage("Failed to send friend request. Please try again later.");
     }
+    setIsLoadingStatus(false);
   }, [profileUser, currentUser.id, onSetTtsMessage, language, isLoadingStatus]);
 
   const handleRespondToRequest = useCallback(async (response: 'accept' | 'decline') => {
@@ -261,10 +263,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       setIsLoadingStatus(true);
       await geminiService.respondToFriendRequest(currentUser.id, profileUser.id, response);
       if (response === 'accept') {
+          setFriendshipStatus(FriendshipStatus.FRIENDS);
           onSetTtsMessage(getTtsPrompt('friend_request_accepted', language, { name: profileUser.name }));
       } else {
+          setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
           onSetTtsMessage(getTtsPrompt('friend_request_declined', language, { name: profileUser.name }));
       }
+      setIsLoadingStatus(false);
   }, [profileUser, currentUser.id, onSetTtsMessage, language, isLoadingStatus]);
 
   const handleCommand = useCallback(async (command: string) => {

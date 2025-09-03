@@ -299,22 +299,23 @@ export const firebaseService = {
     
     async acceptFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
         const currentUserRef = db.collection('users').doc(currentUserId);
+        const requestingUserRef = db.collection('users').doc(requestingUserId);
         const requestDocRef = db.collection('friendRequests').doc(`${requestingUserId}_${currentUserId}`);
     
-        const batch = db.batch();
+        await db.runTransaction(async (transaction) => {
+            const requestDoc = await transaction.get(requestDocRef);
+            if (!requestDoc.exists || requestDoc.data()?.status !== 'pending') {
+                console.warn(`Friend request from ${requestingUserId} to ${currentUserId} not found or already processed.`);
+                return; // Exit transaction gracefully
+            }
     
-        try {
-            // Step 1: Acceptor (currentUser) adds requester to their friend list for immediate UI update.
-            batch.update(currentUserRef, { friendIds: arrayUnion(requestingUserId) });
-            
-            // Step 2: Mark the request as 'accepted' so the requester can sync up on their next login.
-            batch.update(requestDocRef, { status: 'accepted' });
+            // Update both users' friend lists atomically
+            transaction.update(currentUserRef, { friendIds: arrayUnion(requestingUserId) });
+            transaction.update(requestingUserRef, { friendIds: arrayUnion(currentUserId) });
     
-            await batch.commit();
-        } catch (error) {
-            console.error("FATAL: Failed to accept friend request. This is likely a Firestore security rule issue.", error);
-            throw error;
-        }
+            // Delete the processed request
+            transaction.delete(requestDocRef);
+        });
     },
 
     async declineFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
@@ -368,39 +369,6 @@ export const firebaseService = {
         }
 
         return FriendshipStatus.NOT_FRIENDS;
-    },
-
-    async processAcceptedFriendRequests(currentUserId: string): Promise<void> {
-        const currentUserRef = db.collection('users').doc(currentUserId);
-        
-        const acceptedRequestsQuery = db.collection('friendRequests')
-            .where('from.id', '==', currentUserId)
-            .where('status', '==', 'accepted');
-
-        try {
-            const snapshot = await acceptedRequestsQuery.get();
-            if (snapshot.empty) {
-                return;
-            }
-
-            const batch = db.batch();
-            const newFriendIds = [];
-
-            snapshot.docs.forEach(doc => {
-                const request = doc.data();
-                newFriendIds.push(request.to.id);
-                batch.delete(doc.ref);
-            });
-            
-            if (newFriendIds.length > 0) {
-                batch.update(currentUserRef, { friendIds: arrayUnion(...newFriendIds) });
-            }
-
-            await batch.commit();
-        } catch (error) {
-            console.error("Error processing accepted friend requests:", error);
-            throw error;
-        }
     },
 
     listenToFriendRequests(userId: string, callback: (requestingUsers: User[]) => void) {
