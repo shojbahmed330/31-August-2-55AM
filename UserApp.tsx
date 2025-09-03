@@ -178,7 +178,12 @@ const UserApp: React.FC = () => {
   const viewerPostUnsubscribe = useRef<(() => void) | null>(null);
   const currentView = viewStack[viewStack.length - 1];
   const unreadNotificationCount = notifications.filter(n => !n.read).length;
-  const friendRequestCount = friendRequests.length;
+
+  // Refined friend request count logic. Filters out requests from users who are already friends to prevent inconsistencies.
+  const friendIds = new Set(friends.map(f => f.id));
+  const actualFriendRequests = friendRequests.filter(r => r && !friendIds.has(r.id));
+  const friendRequestCount = actualFriendRequests.length;
+
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -839,7 +844,7 @@ const UserApp: React.FC = () => {
       case AppView.POST_DETAILS:
         return <PostDetailScreen {...commonScreenProps} postId={currentView.props.postId} newlyAddedCommentId={currentView.props.newlyAddedCommentId} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment} onPostComment={handlePostComment} onEditComment={handleEditComment} onDeleteComment={handleDeleteComment} />;
       case AppView.FRIENDS:
-        return <FriendsScreen {...commonScreenProps} requests={friendRequests} friends={friends} />;
+        return <FriendsScreen {...commonScreenProps} requests={actualFriendRequests} friends={friends} />;
       case AppView.SEARCH_RESULTS:
         return <SearchResultsScreen {...commonScreenProps} results={searchResults} query={currentView.props.query} />;
       case AppView.SETTINGS:
