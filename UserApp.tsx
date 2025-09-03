@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story } from './types';
 import AuthScreen from './components/AuthScreen';
@@ -831,7 +832,7 @@ const UserApp: React.FC = () => {
       case AppView.POST_DETAILS:
         return <PostDetailScreen {...commonScreenProps} postId={currentView.props.postId} newlyAddedCommentId={currentView.props.newlyAddedCommentId} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment} onPostComment={handlePostComment} onEditComment={handleEditComment} onDeleteComment={handleDeleteComment} />;
       case AppView.FRIENDS:
-        return <FriendsScreen {...commonScreenProps} requests={friendRequests} />;
+        return <FriendsScreen {...commonScreenProps} requests={friendRequests} friends={friends} />;
       case AppView.SEARCH_RESULTS:
         return <SearchResultsScreen {...commonScreenProps} results={searchResults} query={currentView.props.query} />;
       case AppView.SETTINGS:

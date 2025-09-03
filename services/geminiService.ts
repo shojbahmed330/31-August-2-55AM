@@ -207,14 +207,11 @@ export const geminiService = {
     return await firebaseService.getFriendRequests(userId);
   },
 
-  async acceptFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
-    await firebaseService.acceptFriendRequest(currentUserId, requestingUserId);
-  },
+  acceptFriendRequest: (currentUserId: string, requestingUserId: string) => firebaseService.acceptFriendRequest(currentUserId, requestingUserId),
 
-  async declineFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
-    await firebaseService.declineFriendRequest(currentUserId, requestingUserId);
-  },
-
+  declineFriendRequest: (currentUserId: string, requestingUserId: string) => firebaseService.declineFriendRequest(currentUserId, requestingUserId),
+  
+  // FIX: Removed listenToFriendshipStatus as it does not exist in firebaseService.
   async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> {
     return await firebaseService.addFriend(currentUserId, targetUserId);
   },
@@ -228,8 +225,7 @@ export const geminiService = {
 
       const friendsAndRequests = new Set([
           ...currentUser.friendIds || [],
-          // FIX: Removed non-existent properties 'pendingFriendRequests' and 'sentFriendRequests'.
-          // This is a mock function, so its logic doesn't need to be perfect, and this resolves the type error.
+          // FIX: Removed non-existent properties. This is a mock function, so its logic doesn't need to be perfect.
           userId
       ]);
 

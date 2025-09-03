@@ -9,6 +9,7 @@ import { useSettings } from '../contexts/SettingsContext';
 interface FriendsScreenProps {
   currentUser: User;
   requests: User[];
+  friends: User[];
   onSetTtsMessage: (message: string) => void;
   lastCommand: string | null;
   onOpenProfile: (username: string) => void;
@@ -21,10 +22,9 @@ interface FriendsScreenProps {
 
 type ActiveTab = 'requests' | 'suggestions' | 'all_friends';
 
-const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, onSetTtsMessage, lastCommand, onOpenProfile, scrollState, onCommandProcessed, onNavigate, onGoBack, initialTab }) => {
+const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, friends, onSetTtsMessage, lastCommand, onOpenProfile, scrollState, onCommandProcessed, onNavigate, onGoBack, initialTab }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab || 'requests');
   const [suggestions, setSuggestions] = useState<User[]>([]);
-  const [allFriends, setAllFriends] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { language } = useSettings();
 
@@ -32,16 +32,11 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, on
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
-    // Requests are now passed via props, so we only fetch suggestions and friends list here.
-    const [suggs, friends] = await Promise.all([
-      geminiService.getRecommendedFriends(currentUser.id),
-      geminiService.getFriendsList(currentUser.id),
-    ]);
+    // Requests and friends are now passed via props, so we only fetch suggestions.
+    const suggs = await geminiService.getRecommendedFriends(currentUser.id);
     setSuggestions(suggs);
-    setAllFriends(friends);
     setIsLoading(false);
     
-    // If no initial tab is provided, default based on data
     if (!initialTab) {
         if (requests.length > 0) {
             setActiveTab('requests');
@@ -85,31 +80,40 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, on
   const handleAccept = useCallback(async (requestingUser: User) => {
     await geminiService.acceptFriendRequest(currentUser.id, requestingUser.id);
     onSetTtsMessage(getTtsPrompt('friend_request_accepted', language, { name: requestingUser.name }));
-    // No need to call fetchData(), the real-time listener in UserApp will update the requests prop automatically.
-  }, [currentUser.id, onSetTtsMessage, language]);
+    // The real-time listener in UserApp will update the requests prop automatically.
+    // We also refetch here to update the 'All Friends' list immediately.
+    fetchData();
+  }, [currentUser.id, onSetTtsMessage, language, fetchData]);
   
   const handleDecline = useCallback(async (requestingUser: User) => {
     await geminiService.declineFriendRequest(currentUser.id, requestingUser.id);
     onSetTtsMessage(getTtsPrompt('friend_request_declined', language, { name: requestingUser.name }));
-     // No need to call fetchData(), the real-time listener in UserApp will update the requests prop automatically.
+     // The real-time listener in UserApp will update the requests prop automatically.
   }, [currentUser.id, onSetTtsMessage, language]);
   
   const handleAddFriend = useCallback(async (targetUser: User) => {
     const result = await geminiService.addFriend(currentUser.id, targetUser.id);
      if (result.success) {
         onSetTtsMessage(getTtsPrompt('friend_request_sent', language, { name: targetUser.name }));
-        fetchData(); // Refresh lists to show "Request Sent"
+        // Provide instant UI feedback by updating the suggestion's status locally
+        setSuggestions(currentSuggestions => 
+            currentSuggestions.map(user => 
+                user.id === targetUser.id 
+                    ? { ...user, friendshipStatus: FriendshipStatus.REQUEST_SENT } 
+                    : user
+            )
+        );
      } else {
          onSetTtsMessage(getTtsPrompt('friend_request_privacy_block', language, { name: targetUser.name }));
      }
-  }, [currentUser.id, fetchData, onSetTtsMessage, language]);
+  }, [currentUser.id, onSetTtsMessage, language]);
 
   const handleCommand = useCallback(async (command: string) => {
     try {
         let contextUsers: User[] = [];
         if (activeTab === 'requests') contextUsers = requests;
         else if (activeTab === 'suggestions') contextUsers = suggestions;
-        else if (activeTab === 'all_friends') contextUsers = allFriends;
+        else if (activeTab === 'all_friends') contextUsers = friends;
 
         const intentResponse = await geminiService.processIntent(command, { userNames: contextUsers.map(u => u.name) });
         
@@ -172,7 +176,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, on
         onCommandProcessed();
     }
 
-  }, [requests, suggestions, allFriends, activeTab, handleAccept, handleDecline, handleAddFriend, onCommandProcessed, onNavigate, onSetTtsMessage, onGoBack, fetchData, onOpenProfile, language]);
+  }, [requests, suggestions, friends, activeTab, handleAccept, handleDecline, handleAddFriend, onCommandProcessed, onNavigate, onSetTtsMessage, onGoBack, fetchData, onOpenProfile, language]);
 
   useEffect(() => {
     if (lastCommand) {
@@ -188,7 +192,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, on
     let userList: User[] = [];
     if (activeTab === 'requests') userList = requests;
     if (activeTab === 'suggestions') userList = suggestions;
-    if (activeTab === 'all_friends') userList = allFriends;
+    if (activeTab === 'all_friends') userList = friends;
 
     if (userList.length === 0) {
         return <div className="text-lime-500 text-center p-10 bg-slate-900/50 rounded-b-lg border border-t-0 border-lime-500/20">No users to show in this list.</div>
@@ -241,7 +245,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, on
         <div className="border-b border-lime-500/20 flex items-center bg-slate-900/50 rounded-t-lg">
             <TabButton tabId="requests" label="Friend Requests" count={requests.length} />
             <TabButton tabId="suggestions" label="Suggestions" count={suggestions.length} />
-            <TabButton tabId="all_friends" label="All Friends" count={allFriends.length} />
+            <TabButton tabId="all_friends" label="All Friends" count={friends.length} />
         </div>
         
         {renderContent()}
