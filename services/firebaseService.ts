@@ -839,7 +839,7 @@ export const firebaseService = {
                 }
             },
             (error) => {
-                console.error("Error listening to user profile:", error);
+                console.error("Error listening to user profile by username:", error);
                 callback(null);
             }
         );

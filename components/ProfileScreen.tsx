@@ -64,6 +64,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const isProgrammaticScroll = useRef(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const isInitialLoadRef = useRef(true);
   const { language } = useSettings();
   
   const [cropperState, setCropperState] = useState<{
@@ -78,13 +79,28 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   // Effect to listen for real-time profile updates
   useEffect(() => {
     setIsLoading(true);
-    const unsubscribe = firebaseService.listenToUserProfile(username, (user) => {
+    isInitialLoadRef.current = true;
+    
+    const unsubscribe = firebaseService.listenToUserProfile(username, async (user) => {
       if (user) {
         setProfileUser(user);
-        const isOwnProfile = user.id === currentUser.id;
-        if (isLoading) { // Only show TTS message on initial load
-          onSetTtsMessage(isOwnProfile ? getTtsPrompt('profile_loaded_own', language) : getTtsPrompt('profile_loaded', language, {name: user.name}));
+        
+        const userPosts = await firebaseService.getPostsByUser(user.id);
+        setPosts(userPosts);
+        
+        if (user.friendIds && user.friendIds.length > 0) {
+            const friends = await firebaseService.getUsersByIds(user.friendIds);
+            setFriendsList(friends);
+        } else {
+            setFriendsList([]);
         }
+
+        if (isInitialLoadRef.current) {
+          const isOwnProfile = user.id === currentUser.id;
+          onSetTtsMessage(isOwnProfile ? getTtsPrompt('profile_loaded_own', language) : getTtsPrompt('profile_loaded', language, {name: user.name}));
+          isInitialLoadRef.current = false;
+        }
+
       } else {
         onSetTtsMessage(`Profile for ${username} not found.`);
       }
@@ -92,21 +108,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     });
     
     return () => unsubscribe();
-  }, [username, currentUser.id, language, onSetTtsMessage]);
-
-  // Effect to fetch derived data (posts, friends list) when profileUser updates
-  useEffect(() => {
-    if (profileUser) {
-      firebaseService.getPostsByUser(profileUser.id).then(setPosts);
-      
-      if (profileUser.friendIds && profileUser.friendIds.length > 0) {
-        firebaseService.getUsersByIds(profileUser.friendIds).then(setFriendsList);
-      } else {
-        setFriendsList([]);
-      }
-    }
-  }, [profileUser]);
-
+  }, [username, currentUser.id, onSetTtsMessage, language]);
 
   // Effect to check and update friendship status
   useEffect(() => {
@@ -195,10 +197,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           }
 
           if (result) {
-              const { updatedUser, newPost } = result;
-              // No need to set local state, the listener will do it.
-              onCurrentUserUpdate(updatedUser);
-              onPostCreated(newPost);
+              // The real-time listener will handle updating the profile user state.
+              onCurrentUserUpdate(result.updatedUser);
+              onPostCreated(result.newPost);
               onSetTtsMessage(cropperState.type === 'avatar' ? getTtsPrompt('profile_picture_update_success', language) : getTtsPrompt('cover_photo_update_success', language));
           } else {
               throw new Error("Update failed in service.");
@@ -230,7 +231,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const handleDragLeave = (e: React.DragEvent<HTMLElement>, type: 'avatar' | 'cover') => {
       e.preventDefault();
-      setDragState(prev => ({ ...prev, [type === 'avatar' ? 'isOverAvatar' : 'isOverCover']: true }));
+      setDragState(prev => ({ ...prev, [type === 'avatar' ? 'isOverAvatar' : 'isOverCover']: false }));
   };
 
   const handleDrop = (e: React.DragEvent<HTMLElement>, type: 'avatar' | 'cover') => {
@@ -253,7 +254,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     } else {
         onSetTtsMessage("Failed to send friend request. Please try again later.");
     }
-    // The listener will automatically update the friendship status button, so no need to setIsLoadingStatus(false)
   }, [profileUser, currentUser.id, onSetTtsMessage, language, isLoadingStatus]);
 
   const handleRespondToRequest = useCallback(async (response: 'accept' | 'decline') => {
@@ -265,7 +265,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       } else {
           onSetTtsMessage(getTtsPrompt('friend_request_declined', language, { name: profileUser.name }));
       }
-      // The listeners will handle the UI updates automatically.
   }, [profileUser, currentUser.id, onSetTtsMessage, language, isLoadingStatus]);
 
   const handleCommand = useCallback(async (command: string) => {
