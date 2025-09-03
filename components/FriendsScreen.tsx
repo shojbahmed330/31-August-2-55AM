@@ -196,9 +196,16 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, fr
     }
     
     let userList: User[] = [];
-    if (activeTab === 'requests') userList = requests;
-    if (activeTab === 'suggestions') userList = suggestions;
-    if (activeTab === 'all_friends') userList = friends;
+    if (activeTab === 'requests') {
+        const friendIds = new Set(friends.map(f => f.id));
+        // Filter out any requests from users who are already friends. This handles data inconsistencies.
+        userList = requests.filter(r => r && r.id && !friendIds.has(r.id));
+    } else if (activeTab === 'suggestions') {
+        userList = suggestions;
+    } else if (activeTab === 'all_friends') {
+        userList = friends;
+    }
+
 
     if (userList.length === 0) {
         return <div className="text-lime-500 text-center p-10 bg-slate-900/50 rounded-b-lg border border-t-0 border-lime-500/20">No users to show in this list.</div>
@@ -249,7 +256,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, fr
         <h1 className="text-3xl font-bold mb-4 text-lime-200">Friends</h1>
         
         <div className="border-b border-lime-500/20 flex items-center bg-slate-900/50 rounded-t-lg">
-            <TabButton tabId="requests" label="Friend Requests" count={requests.length} />
+            <TabButton tabId="requests" label="Friend Requests" count={requests.filter(r => r && r.id && !friends.some(f => f.id === r.id)).length} />
             <TabButton tabId="suggestions" label="Suggestions" count={suggestions.length} />
             <TabButton tabId="all_friends" label="All Friends" count={friends.length} />
         </div>
