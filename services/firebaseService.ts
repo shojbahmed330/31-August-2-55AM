@@ -823,6 +823,23 @@ export const firebaseService = {
         return null;
     },
 
+    listenToUserProfile(username: string, callback: (user: User | null) => void) {
+        const q = db.collection('users').where('username', '==', username.toLowerCase()).limit(1);
+        return q.onSnapshot(
+            (snapshot) => {
+                if (!snapshot.empty) {
+                    callback(docToUser(snapshot.docs[0]));
+                } else {
+                    callback(null);
+                }
+            },
+            (error) => {
+                console.error("Error listening to user profile:", error);
+                callback(null);
+            }
+        );
+    },
+
     async getPostsByUser(userId: string): Promise<Post[]> {
         const q = db.collection('posts').where('author.id', '==', userId).orderBy('createdAt', 'desc');
         const postQuery = await q.get();
