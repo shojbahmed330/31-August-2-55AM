@@ -254,7 +254,19 @@ export const firebaseService = {
         return users;
     },
 
-    // --- Friends (সম্পূর্ণ নতুন এবং নিরাপদ পদ্ধতি) ---
+    // --- Friends (New Secure Flow) ---
+// FIX: Add the missing getFriendRequests function to match the one called by geminiService.
+    async getFriendRequests(userId: string): Promise<User[]> {
+        const q = db.collection('friendRequests')
+            .where('to.id', '==', userId)
+            .where('status', '==', 'pending')
+            .orderBy('createdAt', 'desc');
+        
+        const snapshot = await q.get();
+        const requesters = snapshot.docs.map(doc => doc.data().from as User);
+        return requesters;
+    },
+
     async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> {
         if (!currentUserId) {
             console.error("addFriend failed: No currentUserId provided.");
@@ -264,9 +276,7 @@ export const firebaseService = {
         const sender = await this.getUserProfileById(currentUserId);
         const receiver = await this.getUserProfileById(targetUserId);
 
-        if (!sender || !receiver) {
-            return { success: false, reason: 'user_not_found' };
-        }
+        if (!sender || !receiver) return { success: false, reason: 'user_not_found' };
         
         try {
             const requestId = `${currentUserId}_${targetUserId}`;
@@ -286,7 +296,58 @@ export const firebaseService = {
         }
     },
 
-    // FIX: Add missing 'unfriendUser' and 'cancelFriendRequest' methods.
+    async acceptFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
+        const currentUserRef = db.collection('users').doc(currentUserId);
+        const requestDocRef = db.collection('friendRequests').doc(`${requestingUserId}_${currentUserId}`);
+
+        await db.runTransaction(async (transaction) => {
+            const requestDoc = await transaction.get(requestDocRef);
+            if (!requestDoc.exists || requestDoc.data()?.status !== 'pending') {
+                throw new Error("Friend request not found or already handled.");
+            }
+            
+            transaction.update(currentUserRef, { friendIds: arrayUnion(requestingUserId) });
+            transaction.update(requestDocRef, { status: 'accepted' });
+        });
+    },
+
+    async declineFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
+        const requestDocRef = db.collection('friendRequests').doc(`${requestingUserId}_${currentUserId}`);
+        await requestDocRef.delete();
+    },
+
+    listenToAcceptedFriendRequests(userId: string, callback: (acceptedRequests: any[]) => void) {
+        const q = db.collection('friendRequests')
+            .where('from.id', '==', userId)
+            .where('status', '==', 'accepted');
+        
+        return q.onSnapshot(snapshot => {
+            if (snapshot.empty) return;
+            const accepted = snapshot.docs.map(doc => doc.data());
+            callback(accepted);
+        });
+    },
+
+    // FIX: Changed 'acceptedByUser' type from 'User' to 'Author' to match the actual object passed from the friend request document, resolving a type error.
+    async finalizeFriendship(currentUserId: string, acceptedByUser: Author): Promise<void> {
+        const currentUserRef = db.collection('users').doc(currentUserId);
+        const requestDocRef = db.collection('friendRequests').doc(`${currentUserId}_${acceptedByUser.id}`);
+        const notificationRef = db.collection('users').doc(currentUserId).collection('notifications').doc();
+    
+        await db.runTransaction(async (transaction) => {
+            transaction.update(currentUserRef, { friendIds: arrayUnion(acceptedByUser.id) });
+            
+            transaction.set(notificationRef, {
+                type: 'friend_request_approved',
+                user: { id: acceptedByUser.id, name: acceptedByUser.name, avatarUrl: acceptedByUser.avatarUrl, username: acceptedByUser.username },
+                createdAt: serverTimestamp(),
+                read: false,
+            });
+
+            transaction.delete(requestDocRef);
+        });
+    },
+
     async unfriendUser(currentUserId: string, targetUserId: string): Promise<boolean> {
         const currentUserRef = db.collection('users').doc(currentUserId);
         const targetUserRef = db.collection('users').doc(targetUserId);
@@ -312,89 +373,36 @@ export const firebaseService = {
             return false;
         }
     },
-
-    async getFriendRequests(userId: string): Promise<User[]> {
-        const q = db.collection('friendRequests')
-            .where('to.id', '==', userId)
-            .where('status', '==', 'pending');
-        
-        const snapshot = await q.get();
-        if (snapshot.empty) return [];
-
-        return snapshot.docs.map(doc => doc.data().from as User);
-    },
     
-    async acceptFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
-        const currentUserRef = db.collection('users').doc(currentUserId);
-        const requestingUserRef = db.collection('users').doc(requestingUserId);
-        const requestDocRef = db.collection('friendRequests').doc(`${requestingUserId}_${currentUserId}`);
-    
-        await db.runTransaction(async (transaction) => {
-            const requestDoc = await transaction.get(requestDocRef);
-            if (!requestDoc.exists || requestDoc.data()?.status !== 'pending') {
-                console.warn(`Friend request from ${requestingUserId} to ${currentUserId} not found or already processed.`);
-                return; // Exit transaction gracefully
-            }
-    
-            // Update both users' friend lists atomically
-            transaction.update(currentUserRef, { friendIds: arrayUnion(requestingUserId) });
-            transaction.update(requestingUserRef, { friendIds: arrayUnion(currentUserId) });
-    
-            // Delete the processed request
-            transaction.delete(requestDocRef);
-        });
-    },
-
-    async declineFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
-        const requestDocRef = db.collection('friendRequests').doc(`${requestingUserId}_${currentUserId}`);
-        await requestDocRef.delete();
-    },
-
-    async respondToFriendRequest(currentUserId: string, requestingUserId: string, response: 'accept' | 'decline'): Promise<void> {
-        if (response === 'accept') {
-            await this.acceptFriendRequest(currentUserId, requestingUserId);
-        } else {
-            await this.declineFriendRequest(currentUserId, requestingUserId);
-        }
-    },
-
     async checkFriendshipStatus(currentUserId: string, profileUserId: string): Promise<FriendshipStatus> {
-        const [currentUserDoc, profileUserDoc] = await Promise.all([
-            db.collection('users').doc(currentUserId).get(),
-            db.collection('users').doc(profileUserId).get()
-        ]);
-
-        if (!currentUserDoc.exists || !profileUserDoc.exists) {
-            return FriendshipStatus.NOT_FRIENDS;
-        }
-
-        const currentUserFriends = currentUserDoc.data()?.friendIds || [];
-        const profileUserFriends = profileUserDoc.data()?.friendIds || [];
-        if (currentUserFriends.includes(profileUserId) || profileUserFriends.includes(currentUserId)) {
+        const user = await this.getUserProfileById(currentUserId);
+        if (user?.friendIds?.includes(profileUserId)) {
             return FriendshipStatus.FRIENDS;
         }
-
-        const [sentSnap, receivedSnap] = await Promise.all([
-            db.collection('friendRequests').doc(`${currentUserId}_${profileUserId}`).get(),
-            db.collection('friendRequests').doc(`${profileUserId}_${currentUserId}`).get()
-        ]);
-
-        if (sentSnap.exists) {
-            const sentRequestData = sentSnap.data();
-            if (sentRequestData && sentRequestData.status === 'accepted') {
-                return FriendshipStatus.FRIENDS;
+        
+        try {
+            const sentRequestRef = db.collection('friendRequests').doc(`${currentUserId}_${profileUserId}`);
+            const receivedRequestRef = db.collection('friendRequests').doc(`${profileUserId}_${currentUserId}`);
+    
+            const [sentSnap, receivedSnap] = await Promise.all([sentRequestRef.get(), receivedRequestRef.get()]);
+    
+            if (sentSnap.exists) {
+                const status = sentSnap.data()?.status;
+                if (status === 'accepted') return FriendshipStatus.FRIENDS;
+                return FriendshipStatus.REQUEST_SENT;
             }
-            return FriendshipStatus.REQUEST_SENT;
-        }
-
-        if (receivedSnap.exists) {
-            const receivedRequestData = receivedSnap.data();
-            if (receivedRequestData && receivedRequestData.status === 'accepted') {
-                return FriendshipStatus.FRIENDS;
+    
+            if (receivedSnap.exists) {
+                const status = receivedSnap.data()?.status;
+                if (status === 'accepted') return FriendshipStatus.FRIENDS;
+                return FriendshipStatus.PENDING_APPROVAL;
             }
-            return FriendshipStatus.PENDING_APPROVAL;
+    
+        } catch (error) {
+            console.error("Error checking friendship status, likely permissions. Falling back.", error);
+            return FriendshipStatus.NOT_FRIENDS;
         }
-
+    
         return FriendshipStatus.NOT_FRIENDS;
     },
 

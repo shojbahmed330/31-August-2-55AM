@@ -269,11 +269,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const handleRespondToRequest = useCallback(async (response: 'accept' | 'decline') => {
       if (!profileUser || isLoadingStatus) return;
       setIsLoadingStatus(true);
-      await geminiService.respondToFriendRequest(currentUser.id, profileUser.id, response);
       if (response === 'accept') {
+          await geminiService.acceptFriendRequest(currentUser.id, profileUser.id);
           setFriendshipStatus(FriendshipStatus.FRIENDS);
           onSetTtsMessage(getTtsPrompt('friend_request_accepted', language, { name: profileUser.name }));
       } else {
+          await geminiService.declineFriendRequest(currentUser.id, profileUser.id);
           setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
           onSetTtsMessage(getTtsPrompt('friend_request_declined', language, { name: profileUser.name }));
       }

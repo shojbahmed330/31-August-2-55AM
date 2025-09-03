@@ -1,10 +1,4 @@
 
-
-
-
-
-
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story } from './types';
 import AuthScreen from './components/AuthScreen';
@@ -221,6 +215,7 @@ const UserApp: React.FC = () => {
     let unsubscribeFriendRequests: () => void = () => {};
     let unsubscribeNotifications: () => void = () => {};
     let unsubscribeUserDoc: () => void = () => {};
+    let unsubscribeAcceptedRequests: () => void = () => {};
 
     const unsubscribeAuth = firebaseService.onAuthStateChanged(async (userAuth) => {
         // Clear all previous listeners when auth state changes
@@ -230,6 +225,7 @@ const UserApp: React.FC = () => {
         unsubscribeFriendRequests();
         unsubscribeNotifications();
         unsubscribeUserDoc();
+        unsubscribeAcceptedRequests();
 
         if (userAuth) {
             let isFirstLoad = true;
@@ -238,8 +234,6 @@ const UserApp: React.FC = () => {
                     setUser(userProfile);
 
                     if (isFirstLoad) {
-                        // The problematic call to processAcceptedFriendRequests has been removed.
-                        // The new acceptFriendRequest logic handles friend list synchronization atomically.
                          if (!initialDeepLink) {
                             setTtsMessage(getTtsPrompt('login_success', language, { name: userProfile.name }));
                         }
@@ -279,6 +273,18 @@ const UserApp: React.FC = () => {
             unsubscribeNotifications = firebaseService.listenToNotifications(userAuth.id, (newNotifications) => {
                 setNotifications(newNotifications);
             });
+            
+            // New listener for when someone accepts OUR friend request
+            unsubscribeAcceptedRequests = firebaseService.listenToAcceptedFriendRequests(userAuth.id, (acceptedRequests) => {
+                if (acceptedRequests.length > 0) {
+                    console.log("Processing accepted friend requests:", acceptedRequests);
+                    acceptedRequests.forEach(request => {
+                        // Finalize the friendship: add them to our friend list and delete the request
+                        firebaseService.finalizeFriendship(userAuth.id, request.to);
+                    });
+                }
+            });
+
         } else {
             // User logged out
             setUser(null);
@@ -300,6 +306,7 @@ const UserApp: React.FC = () => {
         unsubscribeFriendRequests();
         unsubscribeNotifications();
         unsubscribeUserDoc();
+        unsubscribeAcceptedRequests();
         handleClosePhotoViewer();
     };
   }, [currentView?.view, initialDeepLink, language, handleClosePhotoViewer, handleLogout]);
@@ -1136,6 +1143,7 @@ const UserApp: React.FC = () => {
             onEditComment={handleEditComment}
             onDeleteComment={handleDeleteComment}
             onOpenProfile={handleOpenProfile}
+            // FIX: Pass the correct handler `handleSharePost` instead of the undefined `onSharePost`.
             onSharePost={handleSharePost}
         />
       )}

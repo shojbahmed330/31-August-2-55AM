@@ -78,13 +78,13 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, fr
   }, [scrollState]);
 
   const handleAccept = useCallback(async (requestingUser: User) => {
-    await geminiService.respondToFriendRequest(currentUser.id, requestingUser.id, 'accept');
+    await geminiService.acceptFriendRequest(currentUser.id, requestingUser.id);
     onSetTtsMessage(getTtsPrompt('friend_request_accepted', language, { name: requestingUser.name }));
     // The real-time listener in UserApp will update the requests and friends props automatically.
   }, [currentUser.id, onSetTtsMessage, language]);
   
   const handleDecline = useCallback(async (requestingUser: User) => {
-    await geminiService.respondToFriendRequest(currentUser.id, requestingUser.id, 'decline');
+    await geminiService.declineFriendRequest(currentUser.id, requestingUser.id);
     onSetTtsMessage(getTtsPrompt('friend_request_declined', language, { name: requestingUser.name }));
      // The real-time listener in UserApp will update the requests prop automatically.
   }, [currentUser.id, onSetTtsMessage, language]);

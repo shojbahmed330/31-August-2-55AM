@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 // FIX: Add missing ReplyInfo import.
-import { NLUResponse, MusicTrack, User, Post, Campaign, FriendshipStatus, Comment, Message, Conversation, ChatSettings, LiveAudioRoom, LiveVideoRoom, Group, Story, Event, GroupChat, JoinRequest, GroupCategory, StoryPrivacy, PollOption, AdminUser, CategorizedExploreFeed, Report, ReplyInfo } from '../types';
+import { NLUResponse, MusicTrack, User, Post, Campaign, FriendshipStatus, Comment, Message, Conversation, ChatSettings, LiveAudioRoom, LiveVideoRoom, Group, Story, Event, GroupChat, JoinRequest, GroupCategory, StoryPrivacy, PollOption, AdminUser, CategorizedExploreFeed, Report, ReplyInfo, Author } from '../types';
 import { VOICE_EMOJI_MAP, MOCK_MUSIC_LIBRARY, DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS } from '../constants';
 import { firebaseService } from './firebaseService';
 
@@ -205,26 +205,17 @@ export const geminiService = {
   },
 
   // --- Friends ---
-  async getFriendRequests(userId: string): Promise<User[]> {
-    return await firebaseService.getFriendRequests(userId);
-  },
-
+  getFriendRequests: (userId: string): Promise<User[]> => firebaseService.getFriendRequests(userId),
   acceptFriendRequest: (currentUserId: string, requestingUserId: string) => firebaseService.acceptFriendRequest(currentUserId, requestingUserId),
-
   declineFriendRequest: (currentUserId: string, requestingUserId: string) => firebaseService.declineFriendRequest(currentUserId, requestingUserId),
-  
-  respondToFriendRequest: (currentUserId: string, requestingUserId: string, response: 'accept' | 'decline') => firebaseService.respondToFriendRequest(currentUserId, requestingUserId, response),
-
   checkFriendshipStatus: (currentUserId: string, profileUserId: string): Promise<FriendshipStatus> => firebaseService.checkFriendshipStatus(currentUserId, profileUserId),
-  
-  async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> {
-    return await firebaseService.addFriend(currentUserId, targetUserId);
-  },
-
+  addFriend: (currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> => firebaseService.addFriend(currentUserId, targetUserId),
   unfriendUser: (currentUserId: string, targetUserId: string) => firebaseService.unfriendUser(currentUserId, targetUserId),
-  
   cancelFriendRequest: (currentUserId: string, targetUserId: string) => firebaseService.cancelFriendRequest(currentUserId, targetUserId),
-  
+  listenToAcceptedFriendRequests: (userId: string, callback: (acceptedRequests: any[]) => void) => firebaseService.listenToAcceptedFriendRequests(userId, callback),
+  // FIX: Corrected the type of 'acceptedByUser' from an inline object to the 'Author' type to match the expected data structure.
+  finalizeFriendship: (currentUserId: string, acceptedByUser: Author) => firebaseService.finalizeFriendship(currentUserId, acceptedByUser),
+
   // --- This is a mock/simulated function ---
   async getRecommendedFriends(userId: string): Promise<User[]> {
       // FIX: Changed firebaseService.getAllUsers() to firebaseService.getAllUsersForAdmin() which exists.
