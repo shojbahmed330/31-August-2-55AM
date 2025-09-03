@@ -78,33 +78,39 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, fr
   }, [scrollState]);
 
   const handleAccept = useCallback(async (requestingUser: User) => {
-    await geminiService.acceptFriendRequest(currentUser.id, requestingUser.id);
+    await geminiService.respondToFriendRequest(currentUser.id, requestingUser.id, 'accept');
     onSetTtsMessage(getTtsPrompt('friend_request_accepted', language, { name: requestingUser.name }));
-    // The real-time listener in UserApp will update the requests prop automatically.
-    // We also refetch here to update the 'All Friends' list immediately.
-    fetchData();
-  }, [currentUser.id, onSetTtsMessage, language, fetchData]);
+    // The real-time listener in UserApp will update the requests and friends props automatically.
+  }, [currentUser.id, onSetTtsMessage, language]);
   
   const handleDecline = useCallback(async (requestingUser: User) => {
-    await geminiService.declineFriendRequest(currentUser.id, requestingUser.id);
+    await geminiService.respondToFriendRequest(currentUser.id, requestingUser.id, 'decline');
     onSetTtsMessage(getTtsPrompt('friend_request_declined', language, { name: requestingUser.name }));
      // The real-time listener in UserApp will update the requests prop automatically.
   }, [currentUser.id, onSetTtsMessage, language]);
   
   const handleAddFriend = useCallback(async (targetUser: User) => {
+    // Provide instant UI feedback by updating the suggestion's status locally
+    setSuggestions(currentSuggestions => 
+        currentSuggestions.map(user => 
+            user.id === targetUser.id 
+                ? { ...user, friendshipStatus: FriendshipStatus.REQUEST_SENT } 
+                : user
+        )
+    );
     const result = await geminiService.addFriend(currentUser.id, targetUser.id);
      if (result.success) {
         onSetTtsMessage(getTtsPrompt('friend_request_sent', language, { name: targetUser.name }));
-        // Provide instant UI feedback by updating the suggestion's status locally
-        setSuggestions(currentSuggestions => 
+     } else {
+         onSetTtsMessage(getTtsPrompt('friend_request_privacy_block', language, { name: targetUser.name }));
+         // Revert UI on failure
+         setSuggestions(currentSuggestions => 
             currentSuggestions.map(user => 
                 user.id === targetUser.id 
-                    ? { ...user, friendshipStatus: FriendshipStatus.REQUEST_SENT } 
+                    ? { ...user, friendshipStatus: FriendshipStatus.NOT_FRIENDS } 
                     : user
             )
         );
-     } else {
-         onSetTtsMessage(getTtsPrompt('friend_request_privacy_block', language, { name: targetUser.name }));
      }
   }, [currentUser.id, onSetTtsMessage, language]);
 

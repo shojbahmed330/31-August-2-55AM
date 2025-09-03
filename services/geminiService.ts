@@ -211,7 +211,10 @@ export const geminiService = {
 
   declineFriendRequest: (currentUserId: string, requestingUserId: string) => firebaseService.declineFriendRequest(currentUserId, requestingUserId),
   
-  // FIX: Removed listenToFriendshipStatus as it does not exist in firebaseService.
+  respondToFriendRequest: (currentUserId: string, requestingUserId: string, response: 'accept' | 'decline') => firebaseService.respondToFriendRequest(currentUserId, requestingUserId, response),
+
+  checkFriendshipStatus: (currentUserId: string, profileUserId: string): Promise<FriendshipStatus> => firebaseService.checkFriendshipStatus(currentUserId, profileUserId),
+  
   async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> {
     return await firebaseService.addFriend(currentUserId, targetUserId);
   },

@@ -6,7 +6,7 @@ import 'firebase/compat/storage';
 import { User as FirebaseUser } from 'firebase/auth';
 
 import { db, auth, storage } from './firebaseConfig';
-import { User, Post, Comment, Message, ReplyInfo, Story, Group, Campaign, LiveAudioRoom, LiveVideoRoom, Report, Notification, Lead, Author, AdminUser } from '../types';
+import { User, Post, Comment, Message, ReplyInfo, Story, Group, Campaign, LiveAudioRoom, LiveVideoRoom, Report, Notification, Lead, Author, AdminUser, FriendshipStatus } from '../types';
 import { DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET, SPONSOR_CPM_BDT } from '../constants';
 
 const { serverTimestamp, increment, arrayUnion, arrayRemove } = firebase.firestore.FieldValue;
@@ -314,16 +314,27 @@ export const firebaseService = {
 
         const batch = db.batch();
         
-        // ধাপ ১: দুজনকেই দুজনের friendIds লিস্টে যোগ করা
-        batch.update(currentUserRef, { friendIds: arrayUnion(requestingUserId) });
-        batch.update(requestingUserRef, { friendIds: arrayUnion(currentUserId) });
-        
-        // ধাপ ২: রিকোয়েস্ট ডকুমেন্টটি ডিলিট করে দেওয়া
-        batch.delete(requestDocRef);
-        
-        await batch.commit();
+        // This batch write requires Firestore security rules that allow a user to update another user's document,
+        // specifically their `friendIds` array. A common pattern for this is to use a Cloud Function triggered
+        // by the request document's change, which can securely update both user profiles.
+        // If this operation fails, it is almost certainly due to "Missing or insufficient permissions".
+        try {
+            // Step 1: Add each user to the other's friendIds list
+            batch.update(currentUserRef, { friendIds: arrayUnion(requestingUserId) });
+            batch.update(requestingUserRef, { friendIds: arrayUnion(currentUserId) });
+            
+            // Step 2: Delete the request document
+            batch.delete(requestDocRef);
+            
+            await batch.commit();
 
-        // --- নোটিফিকেশন পাঠানোর কোড ---
+        } catch (error) {
+            console.error("FATAL: Failed to accept friend request. This is likely a Firestore security rule issue.", error);
+            // Optionally re-throw the error so the UI can handle it
+            throw error;
+        }
+
+        // --- Add notification logic here ---
     },
 
     // CORRECTED: রিকোয়েস্ট বাতিল করার নিরাপদ পদ্ধতি
@@ -331,6 +342,42 @@ export const firebaseService = {
         const requestDocRef = db.collection('friendRequests').doc(`${requestingUserId}_${currentUserId}`);
         // শুধু রিকোয়েস্ট ডকুমেন্টটি ডিলিট করে দেওয়া
         await requestDocRef.delete();
+    },
+
+    async respondToFriendRequest(currentUserId: string, requestingUserId: string, response: 'accept' | 'decline'): Promise<void> {
+        if (response === 'accept') {
+            await this.acceptFriendRequest(currentUserId, requestingUserId);
+        } else {
+            await this.declineFriendRequest(currentUserId, requestingUserId);
+        }
+    },
+
+    async checkFriendshipStatus(currentUserId: string, profileUserId: string): Promise<FriendshipStatus> {
+        const currentUserDoc = await db.collection('users').doc(currentUserId).get();
+        if (!currentUserDoc.exists) return FriendshipStatus.NOT_FRIENDS;
+
+        // 1. Check if they are already friends
+        const friendIds = currentUserDoc.data()?.friendIds || [];
+        if (friendIds.includes(profileUserId)) {
+            return FriendshipStatus.FRIENDS;
+        }
+
+        // 2. Check for an outgoing request from the current user to the profile user
+        const sentRequestRef = db.collection('friendRequests').doc(`${currentUserId}_${profileUserId}`);
+        const sentSnap = await sentRequestRef.get();
+        if (sentSnap.exists) {
+            return FriendshipStatus.REQUEST_SENT;
+        }
+
+        // 3. Check for an incoming request from the profile user to the current user
+        const receivedRequestRef = db.collection('friendRequests').doc(`${profileUserId}_${currentUserId}`);
+        const receivedSnap = await receivedRequestRef.get();
+        if (receivedSnap.exists) {
+            return FriendshipStatus.PENDING_APPROVAL;
+        }
+
+        // 4. If none of the above, they are not friends
+        return FriendshipStatus.NOT_FRIENDS;
     },
 
     listenToFriendRequests(userId: string, callback: (requestingUsers: User[]) => void) {

@@ -9,7 +9,6 @@ import ImageCropper from './ImageCropper';
 import { useSettings } from '../contexts/SettingsContext';
 import { t } from '../i18n';
 import UserCard from './UserCard';
-import { db } from '../services/firebaseConfig';
 
 
 interface ProfileScreenProps {
@@ -76,7 +75,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const [dragState, setDragState] = useState({ isOverAvatar: false, isOverCover: false });
 
-  const fetchProfile = useCallback(async () => {
+  const fetchProfileData = useCallback(async () => {
     setIsLoading(true);
     const user = await firebaseService.getUserProfile(username);
     if (user) {
@@ -100,49 +99,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   }, [username, currentUser.id, onSetTtsMessage, language]);
 
   useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+    fetchProfileData();
+  }, [fetchProfileData]);
 
+  // Effect to check and update friendship status
   useEffect(() => {
     if (!profileUser || !currentUser || profileUser.id === currentUser.id) {
-      setIsLoadingStatus(false);
-      return;
+        setIsLoadingStatus(false);
+        return;
     }
 
     const checkStatus = async () => {
-      setIsLoadingStatus(true);
-      // 1. Check if friends
-      if (currentUser.friendIds?.includes(profileUser.id)) {
-        setFriendshipStatus(FriendshipStatus.FRIENDS);
+        setIsLoadingStatus(true);
+        const status = await firebaseService.checkFriendshipStatus(currentUser.id, profileUser.id);
+        setFriendshipStatus(status);
         setIsLoadingStatus(false);
-        return;
-      }
-
-      // 2. Check for outgoing request from current user to profile user
-      const sentRequestRef = db.collection('friendRequests').doc(`${currentUser.id}_${profileUser.id}`);
-      const sentSnap = await sentRequestRef.get();
-      if (sentSnap.exists) {
-        setFriendshipStatus(FriendshipStatus.REQUEST_SENT);
-        setIsLoadingStatus(false);
-        return;
-      }
-
-      // 3. Check for incoming request from profile user to current user
-      const receivedRequestRef = db.collection('friendRequests').doc(`${profileUser.id}_${currentUser.id}`);
-      const receivedSnap = await receivedRequestRef.get();
-      if (receivedSnap.exists) {
-        setFriendshipStatus(FriendshipStatus.PENDING_APPROVAL);
-        setIsLoadingStatus(false);
-        return;
-      }
-
-      // 4. Not friends
-      setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
-      setIsLoadingStatus(false);
     };
 
     checkStatus();
-  }, [profileUser, currentUser]);
+  }, [profileUser, currentUser]); // Re-runs when currentUser updates (e.g., friend list changes)
 
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -257,18 +232,33 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   const handleAddFriendAction = useCallback(async () => {
-    if (profileUser) {
-        const result = await geminiService.addFriend(currentUser.id, profileUser.id);
-        if (result.success) {
-            setFriendshipStatus(FriendshipStatus.REQUEST_SENT);
-            onSetTtsMessage(getTtsPrompt('friend_request_sent', language, { name: profileUser.name }));
-        } else if (result.reason === 'friends_of_friends') {
-            onSetTtsMessage(getTtsPrompt('friend_request_privacy_block', language, { name: profileUser.name }));
-        } else {
-            onSetTtsMessage("Failed to send friend request. Please try again later.");
-        }
+    if (!profileUser || isLoadingStatus) return;
+    setIsLoadingStatus(true);
+    const result = await geminiService.addFriend(currentUser.id, profileUser.id);
+    if (result.success) {
+        setFriendshipStatus(FriendshipStatus.REQUEST_SENT);
+        onSetTtsMessage(getTtsPrompt('friend_request_sent', language, { name: profileUser.name }));
+    } else if (result.reason === 'friends_of_friends') {
+        onSetTtsMessage(getTtsPrompt('friend_request_privacy_block', language, { name: profileUser.name }));
+    } else {
+        onSetTtsMessage("Failed to send friend request. Please try again later.");
     }
-  }, [profileUser, currentUser.id, onSetTtsMessage, language]);
+    setIsLoadingStatus(false);
+  }, [profileUser, currentUser.id, onSetTtsMessage, language, isLoadingStatus]);
+
+  const handleRespondToRequest = useCallback(async (response: 'accept' | 'decline') => {
+      if (!profileUser || isLoadingStatus) return;
+      setIsLoadingStatus(true);
+      await geminiService.respondToFriendRequest(currentUser.id, profileUser.id, response);
+      if (response === 'accept') {
+          setFriendshipStatus(FriendshipStatus.FRIENDS);
+          onSetTtsMessage(getTtsPrompt('friend_request_accepted', language, { name: profileUser.name }));
+      } else {
+          setFriendshipStatus(FriendshipStatus.NOT_FRIENDS);
+          onSetTtsMessage(getTtsPrompt('friend_request_declined', language, { name: profileUser.name }));
+      }
+      setIsLoadingStatus(false);
+  }, [profileUser, currentUser.id, onSetTtsMessage, language, isLoadingStatus]);
 
   const handleCommand = useCallback(async (command: string) => {
     if (!profileUser) {
@@ -282,10 +272,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         
         switch (intentResponse.intent) {
           case 'intent_add_friend':
-            if (profileUser.id !== currentUser.id) {
+            if (profileUser.id !== currentUser.id && friendshipStatus === FriendshipStatus.NOT_FRIENDS) {
                 handleAddFriendAction();
             }
             break;
+          case 'intent_accept_request':
+              if (friendshipStatus === FriendshipStatus.PENDING_APPROVAL) {
+                  handleRespondToRequest('accept');
+              }
+              break;
         }
     } catch (error) {
         console.error("Error processing command in ProfileScreen:", error);
@@ -293,7 +288,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     } finally {
         onCommandProcessed();
     }
-  }, [profileUser, currentUser.id, onCommandProcessed, onSetTtsMessage, language, handleAddFriendAction]);
+  }, [profileUser, currentUser.id, onCommandProcessed, onSetTtsMessage, language, handleAddFriendAction, friendshipStatus, handleRespondToRequest]);
 
   useEffect(() => {
     if (lastCommand) {
@@ -332,7 +327,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         case FriendshipStatus.REQUEST_SENT:
             return <button disabled className={`${baseClasses} bg-slate-700 text-slate-300`}>{t(language, 'profile.requestSent')}</button>;
         case FriendshipStatus.PENDING_APPROVAL:
-            return <button onClick={() => onNavigate(AppView.FRIENDS, { initialTab: 'requests' })} className={`${baseClasses} bg-lime-600 text-black hover:bg-lime-500`}><Icon name="add-friend" className="w-5 h-5"/> Respond to Request</button>;
+            return (
+                <div className="flex items-center gap-2">
+                    <button onClick={() => handleRespondToRequest('decline')} className={`${baseClasses} bg-slate-600 text-white hover:bg-slate-500`}>Decline</button>
+                    <button onClick={() => handleRespondToRequest('accept')} className={`${baseClasses} bg-lime-600 text-black hover:bg-lime-500`}><Icon name="add-friend" className="w-5 h-5"/> Respond to Request</button>
+                </div>
+            );
         default:
             return <button onClick={handleAddFriendAction} className={`${baseClasses} bg-rose-600 text-white hover:bg-rose-500`}><Icon name="add-friend" className="w-5 h-5"/> {t(language, 'profile.addFriend')}</button>;
     }
