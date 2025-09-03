@@ -174,6 +174,7 @@ export interface Message {
   read: boolean;
   reactions?: { [emoji: string]: string[] }; // Key: emoji, Value: array of user IDs
   replyTo?: ReplyInfo;
+  isDeleted?: boolean;
 }
 
 export interface Conversation {
@@ -526,6 +527,7 @@ export type Intent =
   | 'intent_reply_to_message'
   | 'intent_reply_to_last_message' // extracts 'message_content'
   | 'intent_react_to_last_message' // extracts 'emoji_type'
+  | 'intent_unsend_message'
   | 'intent_send_announcement' // extracts 'message_content'
   // New Friendship Intents
   | 'intent_unfriend_user' // extracts 'target_name'

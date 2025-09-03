@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story } from './types';
 import AuthScreen from './components/AuthScreen';
 import FeedScreen from './components/FeedScreen';
@@ -180,9 +180,10 @@ const UserApp: React.FC = () => {
   const unreadNotificationCount = notifications.filter(n => !n.read).length;
 
   // Refined friend request count logic. Filters out requests from users who are already friends to prevent inconsistencies.
-  const friendIds = new Set(friends.map(f => f.id));
-  const actualFriendRequests = friendRequests.filter(r => r && !friendIds.has(r.id));
-  const friendRequestCount = actualFriendRequests.length;
+  const friendIds = useMemo(() => new Set(friends.map(f => f.id)), [friends]);
+  const friendRequestCount = useMemo(() => {
+      return friendRequests.filter(r => r && !friendIds.has(r.id)).length;
+  }, [friendRequests, friendIds]);
 
 
   useEffect(() => {
@@ -844,7 +845,7 @@ const UserApp: React.FC = () => {
       case AppView.POST_DETAILS:
         return <PostDetailScreen {...commonScreenProps} postId={currentView.props.postId} newlyAddedCommentId={currentView.props.newlyAddedCommentId} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment} onPostComment={handlePostComment} onEditComment={handleEditComment} onDeleteComment={handleDeleteComment} />;
       case AppView.FRIENDS:
-        return <FriendsScreen {...commonScreenProps} requests={actualFriendRequests} friends={friends} />;
+        return <FriendsScreen {...commonScreenProps} requests={friendRequests} friends={friends} />;
       case AppView.SEARCH_RESULTS:
         return <SearchResultsScreen {...commonScreenProps} results={searchResults} query={currentView.props.query} />;
       case AppView.SETTINGS:

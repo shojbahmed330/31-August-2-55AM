@@ -6,7 +6,7 @@ import 'firebase/compat/storage';
 import { User as FirebaseUser } from 'firebase/auth';
 
 import { db, auth, storage } from './firebaseConfig';
-import { User, Post, Comment, Message, ReplyInfo, Story, Group, Campaign, LiveAudioRoom, LiveVideoRoom, Report, Notification, Lead, Author, AdminUser, FriendshipStatus } from '../types';
+import { User, Post, Comment, Message, ReplyInfo, Story, Group, Campaign, LiveAudioRoom, LiveVideoRoom, Report, Notification, Lead, Author, AdminUser, FriendshipStatus, ChatSettings, Conversation } from '../types';
 import { DEFAULT_AVATARS, DEFAULT_COVER_PHOTOS, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET, SPONSOR_CPM_BDT } from '../constants';
 
 const { serverTimestamp, increment, arrayUnion, arrayRemove } = firebase.firestore.FieldValue;
@@ -841,7 +841,207 @@ export const firebaseService = {
             return null;
         }
     },
+// FIX: Implement missing chat-related methods to resolve property does not exist errors.
+  // --- Messages ---
+    getChatId: (user1Id: string, user2Id: string): string => {
+        return [user1Id, user2Id].sort().join('_');
+    },
 
+    listenToMessages(chatId: string, callback: (messages: Message[]) => void): () => void {
+        const messagesRef = db.collection('chats').doc(chatId).collection('messages').orderBy('createdAt', 'asc');
+        return messagesRef.onSnapshot(snapshot => {
+            const messages = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+                } as Message;
+            });
+            callback(messages);
+        });
+    },
+
+    listenToConversations(userId: string, callback: (convos: Conversation[]) => void): () => void {
+        const q = db.collection('chats').where('participants', 'array-contains', userId).orderBy('lastUpdated', 'desc');
+
+        return q.onSnapshot(async (snapshot) => {
+            const conversations: Conversation[] = [];
+            for (const doc of snapshot.docs) {
+                const data = doc.data();
+                const peerId = data.participants.find((pId: string) => pId !== userId);
+                if (!peerId) continue;
+
+                const peerInfo = data.participantInfo[peerId];
+                if (!peerInfo) continue;
+
+                const peerUser: User = {
+                    id: peerId,
+                    name: peerInfo.name,
+                    avatarUrl: peerInfo.avatarUrl,
+                } as User;
+                
+                const lastMessageData = data.lastMessage;
+                if (!lastMessageData) continue;
+                
+                conversations.push({
+                    peer: peerUser,
+                    lastMessage: {
+                        ...lastMessageData,
+                        createdAt: lastMessageData.createdAt instanceof Timestamp ? lastMessageData.createdAt.toDate().toISOString() : lastMessageData.createdAt,
+                    },
+                    unreadCount: data.unreadCount?.[userId] || 0,
+                });
+            }
+            callback(conversations);
+        });
+    },
+
+    async sendMessage(chatId: string, sender: User, recipient: User, messageContent: any): Promise<void> {
+        const chatRef = db.collection('chats').doc(chatId);
+        const messagesRef = chatRef.collection('messages');
+        
+        const newMessage: Omit<Message, 'id' | 'createdAt'> = {
+            senderId: sender.id,
+            recipientId: recipient.id,
+            type: messageContent.type,
+            read: false,
+        };
+
+        if (messageContent.text) newMessage.text = messageContent.text;
+        if (messageContent.duration) newMessage.duration = messageContent.duration;
+        if (messageContent.replyTo) newMessage.replyTo = messageContent.replyTo;
+
+        if (messageContent.mediaFile) {
+            const { url } = await uploadMediaToCloudinary(messageContent.mediaFile, `chat_${chatId}_${Date.now()}`);
+            newMessage.mediaUrl = url;
+            if(messageContent.type === 'video') {
+                newMessage.type = 'video';
+            } else {
+                newMessage.type = 'image';
+            }
+        } else if (messageContent.audioBlob) {
+            const { url } = await uploadMediaToCloudinary(messageContent.audioBlob, `chat_audio_${chatId}_${Date.now()}.webm`);
+            newMessage.audioUrl = url;
+            newMessage.type = 'audio';
+        }
+
+        const messageWithTimestamp = {
+            ...newMessage,
+            createdAt: serverTimestamp(),
+        };
+        
+        const docRef = await messagesRef.add(messageWithTimestamp);
+
+        const lastMessageForDoc = {
+            ...newMessage,
+            id: docRef.id,
+            createdAt: new Date().toISOString()
+        };
+        delete lastMessageForDoc.mediaFile;
+        delete lastMessageForDoc.audioBlob;
+
+
+        await chatRef.set({
+            participants: [sender.id, recipient.id],
+            participantInfo: {
+                [sender.id]: { name: sender.name, avatarUrl: sender.avatarUrl },
+                [recipient.id]: { name: recipient.name, avatarUrl: recipient.avatarUrl }
+            },
+            lastMessage: lastMessageForDoc,
+            lastUpdated: serverTimestamp(),
+        }, { merge: true });
+
+        const unreadCountField = `unreadCount.${recipient.id}`;
+        await chatRef.update({
+            [unreadCountField]: increment(1)
+        });
+    },
+
+    async markMessagesAsRead(chatId: string, userId: string): Promise<void> {
+        const chatRef = db.collection('chats').doc(chatId);
+        await chatRef.set({
+            unreadCount: {
+                [userId]: 0
+            }
+        }, { merge: true });
+    },
+
+    async unsendMessage(chatId: string, messageId: string, userId: string): Promise<void> {
+        const messageRef = db.collection('chats').doc(chatId).collection('messages').doc(messageId);
+        const messageDoc = await messageRef.get();
+        if (messageDoc.exists && messageDoc.data()?.senderId === userId) {
+            await messageRef.update({
+                isDeleted: true,
+                text: undefined,
+                mediaUrl: undefined,
+                audioUrl: undefined,
+                reactions: {}
+            });
+            const chatRef = db.collection('chats').doc(chatId);
+            const chatDoc = await chatRef.get();
+            if(chatDoc.exists && chatDoc.data().lastMessage.id === messageId) {
+                await chatRef.update({
+                    'lastMessage.isDeleted': true,
+                    'lastMessage.text': undefined,
+                    'lastMessage.mediaUrl': undefined,
+                    'lastMessage.audioUrl': undefined,
+                });
+            }
+        }
+    },
+
+    async reactToMessage(chatId: string, messageId: string, userId: string, emoji: string): Promise<void> {
+        const messageRef = db.collection('chats').doc(chatId).collection('messages').doc(messageId);
+        await db.runTransaction(async (transaction) => {
+            const messageDoc = await transaction.get(messageRef);
+            if (!messageDoc.exists) throw "Message not found";
+
+            const reactions = messageDoc.data()?.reactions || {};
+            const previousReaction = Object.keys(reactions).find(key => reactions[key].includes(userId));
+
+            if (previousReaction) {
+                reactions[previousReaction] = reactions[previousReaction].filter(id => id !== userId);
+            }
+
+            if (previousReaction !== emoji) {
+                if (!reactions[emoji]) {
+                    reactions[emoji] = [];
+                }
+                reactions[emoji].push(userId);
+            }
+            
+            for (const key in reactions) {
+                if (reactions[key].length === 0) {
+                    delete reactions[key];
+                }
+            }
+            
+            transaction.update(messageRef, { reactions });
+        });
+    },
+
+    async deleteChatHistory(chatId: string): Promise<void> {
+        const messagesRef = db.collection('chats').doc(chatId).collection('messages');
+        const snapshot = await messagesRef.limit(500).get(); 
+        if (snapshot.size === 0) {
+            await db.collection('chats').doc(chatId).delete();
+            return;
+        }
+        const batch = db.batch();
+        snapshot.docs.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+        return this.deleteChatHistory(chatId);
+    },
+
+    async getChatSettings(chatId: string): Promise<ChatSettings | null> {
+        const doc = await db.collection('chatSettings').doc(chatId).get();
+        return doc.exists ? doc.data() as ChatSettings : null;
+    },
+
+    async updateChatSettings(chatId: string, settings: Partial<ChatSettings>): Promise<void> {
+        await db.collection('chatSettings').doc(chatId).set(settings, { merge: true });
+    },
     // --- Profile & Security ---
     async getUserProfile(username: string): Promise<User | null> {
         const q = db.collection('users').where('username', '==', username.toLowerCase()).limit(1);

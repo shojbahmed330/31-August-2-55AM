@@ -225,7 +225,7 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
                         <span className="font-semibold text-base">React</span>
                     </button>
                 </div>
-               <button className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200 text-lime-400/80">
+               <button onClick={() => commentInputRef.current?.focus()} className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-800 transition-colors duration-200 text-lime-400/80">
                 <Icon name="comment" className="w-6 h-6" />
                 <span className="font-semibold text-base">Comment</span>
               </button>

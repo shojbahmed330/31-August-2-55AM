@@ -130,6 +130,7 @@ let NLU_INTENT_LIST = `
 - intent_reply_to_message
 - intent_reply_to_last_message (extracts 'message_content')
 - intent_react_to_last_message (extracts 'emoji_type')
+- intent_unsend_message
 - intent_send_announcement (extracts 'message_content')
 - intent_unfriend_user (extracts 'target_name')
 - intent_cancel_friend_request (extracts 'target_name')
@@ -349,112 +350,36 @@ export const geminiService = {
   },
 
    // --- Messages ---
-  async getMessages(user1Id: string, user2Id: string): Promise<Message[]> {
-      const chatId = [user1Id, user2Id].sort().join('_');
-      // This is a placeholder as we don't have a full message listener yet.
-      // In a real app, you'd use firebaseService.listenToMessages
-      return [];
-  },
-
-   async sendAudioMessage(senderId: string, recipientId: string, duration: number, replyTo?: Message): Promise<Message> {
-        // This is a mock. In a real app, you'd upload audio.
-        const newMessage: Message = {
-            id: Date.now().toString(),
-            senderId,
-            recipientId,
-            type: 'audio',
-            audioUrl: '#',
-            duration,
-            createdAt: new Date().toISOString(),
-            read: false,
-            replyTo: replyTo ? this.createReplySnippet(replyTo) : undefined,
-        };
-        return newMessage;
-    },
-    
-    async sendTextMessage(senderId: string, recipientId: string, text: string, replyTo?: Message): Promise<Message> {
-        const newMessage: Message = {
-            id: Date.now().toString(),
-            senderId,
-            recipientId,
-            type: 'text',
-            text: text,
-            createdAt: new Date().toISOString(),
-            read: false,
-            replyTo: replyTo ? this.createReplySnippet(replyTo) : undefined,
-        };
-        return newMessage;
-    },
-
-    async sendMediaMessage(senderId: string, recipientId: string, mediaUrl: string, type: 'image' | 'video', duration?: number, replyTo?: Message): Promise<Message> {
-       const newMessage: Message = {
-            id: Date.now().toString(),
-            senderId,
-            recipientId,
-            type: type,
-            mediaUrl: mediaUrl,
-            duration: duration,
-            createdAt: new Date().toISOString(),
-            read: false,
-            replyTo: replyTo ? this.createReplySnippet(replyTo) : undefined,
-        };
-        return newMessage;
-    },
-    
-    async reactToMessage(messageId: string, userId: string, emoji: string): Promise<Message | null> {
-        // Mock implementation
-        console.log(`User ${userId} reacted with ${emoji} to message ${messageId}`);
-        // In a real app, this would update Firestore. For now, we return null as we can't update local state easily.
-        return null;
-    },
+// FIX: Add passthrough exports for chat-related methods to fix multiple errors.
+  getChatId: (user1Id, user2Id) => firebaseService.getChatId(user1Id, user2Id),
+  listenToMessages: (chatId, callback) => firebaseService.listenToMessages(chatId, callback),
+  listenToConversations: (userId, callback) => firebaseService.listenToConversations(userId, callback),
+  sendMessage: (chatId, sender, recipient, messageContent) => firebaseService.sendMessage(chatId, sender, recipient, messageContent),
+  unsendMessage: (chatId, messageId, userId) => firebaseService.unsendMessage(chatId, messageId, userId),
+  reactToMessage: (chatId, messageId, userId, emoji) => firebaseService.reactToMessage(chatId, messageId, userId, emoji),
+  deleteChatHistory: (chatId) => firebaseService.deleteChatHistory(chatId),
+  getChatSettings: (chatId) => firebaseService.getChatSettings(chatId),
+  updateChatSettings: (chatId, settings) => firebaseService.updateChatSettings(chatId, settings),
+  markMessagesAsRead: (chatId, userId) => firebaseService.markMessagesAsRead(chatId, userId),
 
     createReplySnippet(message: Message): ReplyInfo {
         let content = '';
-        switch(message.type) {
-            case 'text': content = message.text || ''; break;
-            case 'image': content = 'Image'; break;
-            case 'video': content = 'Video'; break;
-            case 'audio': content = `Voice Message · ${message.duration}s`; break;
+        if (message.isDeleted) {
+            content = "Unsent message";
+        } else {
+            switch(message.type) {
+                case 'text': content = message.text || ''; break;
+                case 'image': content = 'Image'; break;
+                case 'video': content = 'Video'; break;
+                case 'audio': content = `Voice Message · ${message.duration}s`; break;
+            }
         }
         return {
             messageId: message.id,
-            senderName: message.senderId, // In a real app, you'd fetch the name
+            // In a real app, you might fetch the name, but senderId is sufficient for a snippet
+            senderName: message.senderId,
             content: content
         };
-    },
-
-    async getConversations(userId: string): Promise<Conversation[]> {
-        // Mock implementation
-        const friends = await this.getFriendsList(userId);
-        if (friends.length === 0) return [];
-        return friends.map((friend, i) => ({
-            peer: friend,
-            lastMessage: {
-                id: `msg${i}`,
-                senderId: i % 2 === 0 ? friend.id : userId,
-                recipientId: i % 2 === 0 ? userId : friend.id,
-                type: 'text',
-                text: i % 2 === 0 ? 'Hey, what\'s up?' : 'Not much, just chilling!',
-                createdAt: new Date(Date.now() - i * 1000 * 60 * 60).toISOString(),
-                read: i % 2 !== 0,
-            },
-            unreadCount: i % 2 === 0 ? 2 : 0,
-        }));
-    },
-
-    async deleteChatHistory(userId1: string, userId2: string): Promise<void> {
-        // Mock implementation
-        console.log(`Deleting chat history between ${userId1} and ${userId2}`);
-    },
-
-    async getChatSettings(userId1: string, userId2: string): Promise<ChatSettings> {
-        // Mock implementation
-        return { theme: 'default' };
-    },
-
-    async updateChatSettings(userId1: string, userId2: string, settings: Partial<ChatSettings>): Promise<void> {
-        // Mock implementation
-        console.log(`Updating chat settings for ${userId1}/${userId2} to`, settings);
     },
 
     // --- Rooms ---

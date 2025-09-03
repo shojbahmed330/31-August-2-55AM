@@ -6,6 +6,7 @@ import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
 import { getTtsPrompt } from '../constants';
 import { useSettings } from '../contexts/SettingsContext';
+import { firebaseService } from '../services/firebaseService';
 
 interface ConversationsScreenProps {
   currentUser: User;
@@ -18,6 +19,22 @@ interface ConversationsScreenProps {
 
 const ConversationItem: React.FC<{ conversation: Conversation; currentUserId: string; onClick: () => void }> = ({ conversation, currentUserId, onClick }) => {
     const { peer, lastMessage, unreadCount } = conversation;
+
+    if (!lastMessage) {
+        // Render a placeholder for new, empty conversations
+        return (
+            <button onClick={onClick} className="w-full text-left p-3 flex items-center gap-4 rounded-lg transition-colors hover:bg-slate-700/50">
+                <div className="relative flex-shrink-0">
+                    <img src={peer.avatarUrl} alt={peer.name} className="w-14 h-14 rounded-full" />
+                </div>
+                <div className="flex-grow overflow-hidden">
+                    <p className="font-bold text-lg truncate text-slate-200">{peer.name}</p>
+                    <p className="text-sm truncate text-slate-400 italic">No messages yet. Start the conversation!</p>
+                </div>
+            </button>
+        );
+    }
+    
     const isLastMessageFromMe = lastMessage.senderId === currentUserId;
 
     const timeAgo = new Date(lastMessage.createdAt).toLocaleDateString('en-US', {
@@ -26,6 +43,9 @@ const ConversationItem: React.FC<{ conversation: Conversation; currentUserId: st
     });
     
     const getSnippet = (message: Message): string => {
+        if (message.isDeleted) {
+            return isLastMessageFromMe ? "You unsent a message" : "Unsent a message";
+        }
         const prefix = isLastMessageFromMe ? 'You: ' : '';
         switch (message.type) {
             case 'text':
@@ -69,18 +89,19 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser, 
   const [isLoading, setIsLoading] = useState(true);
   const { language } = useSettings();
 
-  const fetchConversations = useCallback(async () => {
-    setIsLoading(true);
-    const convos = await geminiService.getConversations(currentUser.id);
-    setConversations(convos);
-    setIsLoading(false);
-    onSetTtsMessage(getTtsPrompt('conversations_loaded', language));
-  }, [currentUser.id, onSetTtsMessage, language]);
-
-
   useEffect(() => {
-    fetchConversations();
-  }, [fetchConversations]);
+    setIsLoading(true);
+    const unsubscribe = firebaseService.listenToConversations(currentUser.id, (convos) => {
+        setConversations(convos);
+        if (isLoading) {
+             onSetTtsMessage(getTtsPrompt('conversations_loaded', language));
+             setIsLoading(false);
+        }
+    });
+
+    return () => unsubscribe();
+  }, [currentUser.id, onSetTtsMessage, language, isLoading]);
+
 
   const handleCommand = useCallback(async (command: string) => {
     try {
@@ -93,7 +114,7 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser, 
                 break;
             case 'intent_reload_page':
                 onSetTtsMessage("Reloading conversations...");
-                fetchConversations();
+                // The listener will auto-refresh, no need for a manual fetch
                 break;
             case 'intent_open_chat':
                 if (intentResponse.slots?.target_name) {
@@ -112,7 +133,7 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser, 
     } finally {
         onCommandProcessed();
     }
-  }, [conversations, onOpenConversation, onSetTtsMessage, onCommandProcessed, onGoBack, fetchConversations]);
+  }, [conversations, onOpenConversation, onSetTtsMessage, onCommandProcessed, onGoBack]);
 
   // Handle voice commands to open a chat
   useEffect(() => {
