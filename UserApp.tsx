@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story } from './types';
 import AuthScreen from './components/AuthScreen';
@@ -229,12 +230,12 @@ const UserApp: React.FC = () => {
 
         if (userAuth) {
             let isFirstLoad = true;
-            // FIX: The userAuth object from onAuthStateChanged has an 'id' property, not 'uid'.
-            unsubscribeUserDoc = firebaseService.listenToCurrentUser(userAuth.id, (userProfile) => {
+            unsubscribeUserDoc = firebaseService.listenToCurrentUser(userAuth.id, async (userProfile) => {
                 if (userProfile && !userProfile.isDeactivated && !userProfile.isBanned) {
                     setUser(userProfile);
 
                     if (isFirstLoad) {
+                         await firebaseService.processAcceptedFriendRequests(userAuth.id);
                          if (!initialDeepLink) {
                             setTtsMessage(getTtsPrompt('login_success', language, { name: userProfile.name }));
                         }
@@ -247,9 +248,7 @@ const UserApp: React.FC = () => {
                         isFirstLoad = false;
                     }
                 } else {
-                    // FIX: The userAuth object from onAuthStateChanged has an 'id' property, not 'uid'.
                     if (userProfile?.isDeactivated) console.log(`User ${userAuth.id} is deactivated. Signing out.`);
-                    // FIX: The userAuth object from onAuthStateChanged has an 'id' property, not 'uid'.
                     if (userProfile?.isBanned) console.log(`User ${userAuth.id} is banned. Signing out.`);
                     handleLogout();
                 }
@@ -259,7 +258,6 @@ const UserApp: React.FC = () => {
             // Set up other real-time listeners that depend on the user's existence
             setIsLoadingFeed(true);
             setIsLoadingReels(true);
-            // FIX: The userAuth object from onAuthStateChanged has an 'id' property, not 'uid'.
             unsubscribePosts = firebaseService.listenToFeedPosts(userAuth.id, (feedPosts) => {
                 setPosts(feedPosts);
                 setIsLoadingFeed(false);
@@ -268,14 +266,12 @@ const UserApp: React.FC = () => {
                 setReelsPosts(newReelsPosts);
                 setIsLoadingReels(false);
             });
-            // FIX: The userAuth object from onAuthStateChanged has an 'id' property, not 'uid'.
             unsubscribeFriends = firebaseService.listenToFriends(userAuth.id, (friendsList) => {
                 setFriends(friendsList);
             });
             unsubscribeFriendRequests = firebaseService.listenToFriendRequests(userAuth.id, (requests) => {
                 setFriendRequests(requests);
             });
-            // FIX: The userAuth object from onAuthStateChanged has an 'id' property, not 'uid'.
             unsubscribeNotifications = firebaseService.listenToNotifications(userAuth.id, (newNotifications) => {
                 setNotifications(newNotifications);
             });

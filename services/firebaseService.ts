@@ -255,8 +255,6 @@ export const firebaseService = {
     },
 
     // --- Friends (সম্পূর্ণ নতুন এবং নিরাপদ পদ্ধতি) ---
-
-    // CORRECTED: friendRequests কালেকশন ব্যবহার করে রিকোয়েস্ট পাঠাবে
     async addFriend(currentUserId: string, targetUserId: string): Promise<{ success: boolean; reason?: string }> {
         if (!currentUserId) {
             console.error("addFriend failed: No currentUserId provided.");
@@ -270,14 +268,10 @@ export const firebaseService = {
             return { success: false, reason: 'user_not_found' };
         }
         
-        // --- এখানে প্রাইভেসি চেক যুক্ত করতে পারেন ---
-
         try {
-            // রিকোয়েস্টের জন্য একটি ইউনিক আইডি তৈরি করা হচ্ছে
             const requestId = `${currentUserId}_${targetUserId}`;
             const requestDocRef = db.collection('friendRequests').doc(requestId);
 
-            // friendRequests কালেকশনে একটি নতুন ডকুমেন্ট তৈরি করা হচ্ছে
             await requestDocRef.set({
                 from: { id: sender.id, name: sender.name, avatarUrl: sender.avatarUrl, username: sender.username },
                 to: { id: receiver.id, name: receiver.name, avatarUrl: receiver.avatarUrl, username: receiver.username },
@@ -285,8 +279,6 @@ export const firebaseService = {
                 createdAt: serverTimestamp(),
             });
             
-            // --- নোটিফিকেশন পাঠানোর কোড এখানে যুক্ত করতে পারেন ---
-
             return { success: true };
         } catch (error) {
             console.error("FirebaseError on addFriend:", error);
@@ -302,45 +294,27 @@ export const firebaseService = {
         const snapshot = await q.get();
         if (snapshot.empty) return [];
 
-        // যে ইউজাররা রিকোয়েস্ট পাঠিয়েছে, তাদের তথ্য রিটার্ন করা হচ্ছে
         return snapshot.docs.map(doc => doc.data().from as User);
     },
     
-    // CORRECTED: রিকোয়েস্ট গ্রহণ করার নিরাপদ পদ্ধতি
     async acceptFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
         const currentUserRef = db.collection('users').doc(currentUserId);
-        const requestingUserRef = db.collection('users').doc(requestingUserId);
         const requestDocRef = db.collection('friendRequests').doc(`${requestingUserId}_${currentUserId}`);
 
         const batch = db.batch();
-        
-        // This batch write requires Firestore security rules that allow a user to update another user's document,
-        // specifically their `friendIds` array. A common pattern for this is to use a Cloud Function triggered
-        // by the request document's change, which can securely update both user profiles.
-        // If this operation fails, it is almost certainly due to "Missing or insufficient permissions".
-        try {
-            // Step 1: Add each user to the other's friendIds list
-            batch.update(currentUserRef, { friendIds: arrayUnion(requestingUserId) });
-            batch.update(requestingUserRef, { friendIds: arrayUnion(currentUserId) });
-            
-            // Step 2: Delete the request document
-            batch.delete(requestDocRef);
-            
-            await batch.commit();
 
+        try {
+            batch.update(currentUserRef, { friendIds: arrayUnion(requestingUserId) });
+            batch.update(requestDocRef, { status: 'accepted' });
+            await batch.commit();
         } catch (error) {
-            console.error("FATAL: Failed to accept friend request. This is likely a Firestore security rule issue.", error);
-            // Optionally re-throw the error so the UI can handle it
+            console.error("FirebaseError on acceptFriendRequest:", error);
             throw error;
         }
-
-        // --- Add notification logic here ---
     },
 
-    // CORRECTED: রিকোয়েস্ট বাতিল করার নিরাপদ পদ্ধতি
     async declineFriendRequest(currentUserId: string, requestingUserId: string): Promise<void> {
         const requestDocRef = db.collection('friendRequests').doc(`${requestingUserId}_${currentUserId}`);
-        // শুধু রিকোয়েস্ট ডকুমেন্টটি ডিলিট করে দেওয়া
         await requestDocRef.delete();
     },
 
@@ -353,31 +327,75 @@ export const firebaseService = {
     },
 
     async checkFriendshipStatus(currentUserId: string, profileUserId: string): Promise<FriendshipStatus> {
-        const currentUserDoc = await db.collection('users').doc(currentUserId).get();
-        if (!currentUserDoc.exists) return FriendshipStatus.NOT_FRIENDS;
+        const [currentUserDoc, profileUserDoc] = await Promise.all([
+            db.collection('users').doc(currentUserId).get(),
+            db.collection('users').doc(profileUserId).get()
+        ]);
 
-        // 1. Check if they are already friends
-        const friendIds = currentUserDoc.data()?.friendIds || [];
-        if (friendIds.includes(profileUserId)) {
+        if (!currentUserDoc.exists || !profileUserDoc.exists) {
+            return FriendshipStatus.NOT_FRIENDS;
+        }
+
+        const currentUserFriends = currentUserDoc.data()?.friendIds || [];
+        const profileUserFriends = profileUserDoc.data()?.friendIds || [];
+        if (currentUserFriends.includes(profileUserId) || profileUserFriends.includes(currentUserId)) {
             return FriendshipStatus.FRIENDS;
         }
 
-        // 2. Check for an outgoing request from the current user to the profile user
-        const sentRequestRef = db.collection('friendRequests').doc(`${currentUserId}_${profileUserId}`);
-        const sentSnap = await sentRequestRef.get();
+        const [sentSnap, receivedSnap] = await Promise.all([
+            db.collection('friendRequests').doc(`${currentUserId}_${profileUserId}`).get(),
+            db.collection('friendRequests').doc(`${profileUserId}_${currentUserId}`).get()
+        ]);
+
         if (sentSnap.exists) {
+            const sentRequestData = sentSnap.data();
+            if (sentRequestData && sentRequestData.status === 'accepted') {
+                return FriendshipStatus.FRIENDS;
+            }
             return FriendshipStatus.REQUEST_SENT;
         }
 
-        // 3. Check for an incoming request from the profile user to the current user
-        const receivedRequestRef = db.collection('friendRequests').doc(`${profileUserId}_${currentUserId}`);
-        const receivedSnap = await receivedRequestRef.get();
         if (receivedSnap.exists) {
+            const receivedRequestData = receivedSnap.data();
+            if (receivedRequestData && receivedRequestData.status === 'accepted') {
+                return FriendshipStatus.FRIENDS;
+            }
             return FriendshipStatus.PENDING_APPROVAL;
         }
 
-        // 4. If none of the above, they are not friends
         return FriendshipStatus.NOT_FRIENDS;
+    },
+
+    async processAcceptedFriendRequests(currentUserId: string): Promise<void> {
+        const currentUserRef = db.collection('users').doc(currentUserId);
+        
+        const acceptedRequestsQuery = db.collection('friendRequests')
+            .where('from.id', '==', currentUserId)
+            .where('status', '==', 'accepted');
+
+        try {
+            const snapshot = await acceptedRequestsQuery.get();
+            if (snapshot.empty) {
+                return;
+            }
+
+            const batch = db.batch();
+            const newFriendIds = [];
+
+            snapshot.docs.forEach(doc => {
+                const request = doc.data();
+                newFriendIds.push(request.to.id);
+                batch.delete(doc.ref);
+            });
+            
+            if (newFriendIds.length > 0) {
+                batch.update(currentUserRef, { friendIds: arrayUnion(...newFriendIds) });
+            }
+
+            await batch.commit();
+        } catch (error) {
+            console.error("Error processing accepted friend requests:", error);
+        }
     },
 
     listenToFriendRequests(userId: string, callback: (requestingUsers: User[]) => void) {
