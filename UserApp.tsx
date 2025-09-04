@@ -739,6 +739,9 @@ const UserApp: React.FC = () => {
 
   const handleOpenConversation = async (peer: User) => {
     if (!user) return;
+    // Ensure the chat document exists before navigating to the message screen.
+    // This prevents permission errors when trying to listen to messages of a non-existent chat.
+    await firebaseService.ensureChatDocumentExists(user, peer);
     navigate(AppView.MESSAGES, { recipient: peer, ttsMessage: getTtsPrompt('message_screen_loaded', language, { name: peer.name }) });
   };
   
