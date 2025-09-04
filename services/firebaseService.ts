@@ -864,6 +864,8 @@ export const firebaseService = {
                     },
                     createdAt: serverTimestamp(),
                     lastUpdated: serverTimestamp(),
+                    // Initialize with no last message and zero unread counts
+                    lastMessage: null, 
                     unreadCount: {
                         [user1.id]: 0,
                         [user2.id]: 0
