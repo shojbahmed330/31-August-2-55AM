@@ -26,15 +26,11 @@ auth.setPersistence(firebase.auth.Auth.Persistence.SESSION)
     console.error("Firebase: Auth session persistence failed. User may not stay logged in.", error);
   });
 
-// Enable Firestore persistence to allow for offline functionality.
-db.enablePersistence({ synchronizeTabs: true })
-  .catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.warn("Firestore persistence failed: can only be enabled in one tab at a time.");
-    } else if (err.code === 'unimplemented') {
-      console.warn("Firestore persistence failed: browser does not support this feature.");
-    }
-  });
+// NOTE: The db.enablePersistence() call has been removed.
+// While it enables offline capabilities, it can be a source of complex issues
+// in certain browser environments (e.g., with ad-blockers, multiple tabs, or strict privacy settings),
+// often manifesting as CORS or network errors. Disabling it provides a more stable
+// online-only experience and is a common troubleshooting step for these kinds of problems.
 
 
 export { auth, db, storage, app };
