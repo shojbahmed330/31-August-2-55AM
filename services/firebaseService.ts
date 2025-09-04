@@ -1,4 +1,3 @@
-
 // @ts-nocheck
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
@@ -842,8 +841,8 @@ export const firebaseService = {
             return null;
         }
     },
-// FIX: Implement missing chat-related methods to resolve property does not exist errors.
-  // --- Messages ---
+
+    // --- Messages ---
     getChatId: (user1Id: string, user2Id: string): string => {
         return [user1Id, user2Id].sort().join('_');
     },
@@ -851,29 +850,24 @@ export const firebaseService = {
     async ensureChatDocumentExists(user1: User, user2: User): Promise<string> {
         const chatId = firebaseService.getChatId(user1.id, user2.id);
         const chatRef = db.collection('chats').doc(chatId);
-
         try {
-            const doc = await chatRef.get();
-            if (!doc.exists) {
-                // Document doesn't exist, create it.
-                await chatRef.set({
-                    participants: [user1.id, user2.id],
-                    participantInfo: {
-                        [user1.id]: { name: user1.name, username: user1.username, avatarUrl: user1.avatarUrl },
-                        [user2.id]: { name: user2.name, username: user2.username, avatarUrl: user2.avatarUrl }
-                    },
-                    createdAt: serverTimestamp(),
-                    lastUpdated: serverTimestamp(),
-                    // Initialize with no last message and zero unread counts
-                    lastMessage: null, 
-                    unreadCount: {
-                        [user1.id]: 0,
-                        [user2.id]: 0
-                    }
-                });
-            }
+            // This operation attempts to create the document with initial data.
+            // If the document already exists, { merge: true } prevents overwriting existing
+            // fields like lastMessage. It becomes a lightweight update.
+            // This avoids the initial 'get' call which fails due to security rules
+            // on non-existent documents.
+            await chatRef.set({
+                participants: [user1.id, user2.id],
+                participantInfo: {
+                    [user1.id]: { name: user1.name, username: user1.username, avatarUrl: user1.avatarUrl },
+                    [user2.id]: { name: user2.name, username: user2.username, avatarUrl: user2.avatarUrl }
+                },
+                lastUpdated: serverTimestamp()
+            }, { merge: true });
         } catch (error) {
             console.error("Error ensuring chat document exists:", error);
+            // Re-throwing the error makes it visible to the caller, which is better for debugging.
+            throw error;
         }
         return chatId;
     },
