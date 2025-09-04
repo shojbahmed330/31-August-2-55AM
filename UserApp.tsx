@@ -340,7 +340,11 @@ const UserApp: React.FC = () => {
     }
   };
   
-  const handleStartMessage = (recipient: User) => navigate(AppView.MESSAGES, { recipient, ttsMessage: getTtsPrompt('message_screen_loaded', language, { name: recipient.name }) });
+  const handleStartMessage = async (recipient: User) => {
+    if (!user) return;
+    await firebaseService.ensureChatDocumentExists(user, recipient);
+    navigate(AppView.MESSAGES, { recipient, ttsMessage: getTtsPrompt('message_screen_loaded', language, { name: recipient.name }) });
+  };
 
   const handleCommand = useCallback((command: string) => {
     setVoiceState(VoiceState.PROCESSING);
@@ -532,12 +536,10 @@ const UserApp: React.FC = () => {
   };
 
   const handleAdClick = async (post: Post) => {
-    if (!post.isSponsored || !post.campaignId) return;
+    if (!user || !post.isSponsored || !post.campaignId) return;
 
-    // 1. Track the click
     await firebaseService.trackAdClick(post.campaignId);
     
-    // 2. Perform the action
     if (post.allowLeadForm) {
         setTtsMessage(getTtsPrompt('lead_form_opened', language));
         setLeadFormPost(post);
@@ -548,12 +550,11 @@ const UserApp: React.FC = () => {
         const sponsorUser = await firebaseService.getUserProfileById(post.sponsorId);
         if (sponsorUser) {
             setTtsMessage(`Opening conversation with ${sponsorUser.name}.`);
-            navigate(AppView.MESSAGES, { recipient: sponsorUser });
+            await handleStartMessage(sponsorUser);
         } else {
             setTtsMessage(`Could not find sponsor ${post.sponsorName}.`);
         }
     } else if (post.sponsorId) {
-        // Fallback to profile view if sponsorId exists but other actions don't
         const sponsorUser = await firebaseService.getUserProfileById(post.sponsorId);
         if (sponsorUser) {
             setTtsMessage(`Opening profile for ${sponsorUser.name}.`);
@@ -848,7 +849,7 @@ const UserApp: React.FC = () => {
       case AppView.POST_DETAILS:
         return <PostDetailScreen {...commonScreenProps} postId={currentView.props.postId} newlyAddedCommentId={currentView.props.newlyAddedCommentId} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment} onPostComment={handlePostComment} onEditComment={handleEditComment} onDeleteComment={handleDeleteComment} />;
       case AppView.FRIENDS:
-        return <FriendsScreen {...commonScreenProps} requests={friendRequests} friends={friends} />;
+        return <FriendsScreen {...commonScreenProps} requests={friendRequests} friends={friends} onOpenConversation={handleOpenConversation} />;
       case AppView.SEARCH_RESULTS:
         return <SearchResultsScreen {...commonScreenProps} results={searchResults} query={currentView.props.query} />;
       case AppView.SETTINGS:

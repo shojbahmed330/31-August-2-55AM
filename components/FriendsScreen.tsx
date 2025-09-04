@@ -18,11 +18,12 @@ interface FriendsScreenProps {
   onNavigate: (view: AppView, props?: any) => void;
   onGoBack: () => void;
   initialTab?: ActiveTab;
+  onOpenConversation: (peer: User) => void;
 }
 
 type ActiveTab = 'requests' | 'suggestions' | 'all_friends';
 
-const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, friends, onSetTtsMessage, lastCommand, onOpenProfile, scrollState, onCommandProcessed, onNavigate, onGoBack, initialTab }) => {
+const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, friends, onSetTtsMessage, lastCommand, onOpenProfile, scrollState, onCommandProcessed, onNavigate, onGoBack, initialTab, onOpenConversation }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab || 'requests');
   const [suggestions, setSuggestions] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -233,7 +234,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ currentUser, requests, fr
                         </>
                     )}
                     {activeTab === 'all_friends' && (
-                        <button onClick={() => onNavigate(AppView.MESSAGES, { recipient: user })} className="px-3 py-2 text-sm rounded-lg bg-slate-700 hover:bg-slate-600 text-lime-200 font-semibold transition-colors">Message</button>
+                        <button onClick={() => onOpenConversation(user)} className="px-3 py-2 text-sm rounded-lg bg-slate-700 hover:bg-slate-600 text-lime-200 font-semibold transition-colors">Message</button>
                     )}
                 </UserCard>
             ))}
