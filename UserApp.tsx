@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story } from './types';
 import AuthScreen from './components/AuthScreen';
@@ -315,7 +316,7 @@ const UserApp: React.FC = () => {
         unsubscribeAcceptedRequests();
         handleClosePhotoViewer();
     };
-  }, [currentView?.view, initialDeepLink, language, handleClosePhotoViewer, handleLogout]);
+  }, [initialDeepLink, language, handleClosePhotoViewer, handleLogout]);
 
   useEffect(() => {
     setTtsMessage(getTtsPrompt('welcome', language));
