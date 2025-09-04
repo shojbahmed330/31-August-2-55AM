@@ -849,7 +849,7 @@ export const firebaseService = {
     },
 
     async ensureChatDocumentExists(user1: User, user2: User): Promise<string> {
-        const chatId = this.getChatId(user1.id, user2.id);
+        const chatId = firebaseService.getChatId(user1.id, user2.id);
         const chatRef = db.collection('chats').doc(chatId);
 
         try {
