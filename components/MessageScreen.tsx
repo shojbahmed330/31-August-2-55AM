@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Message, RecordingState, ScrollState, ChatTheme } from '../types';
 import { geminiService } from '../services/geminiService';
@@ -428,12 +429,18 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
   const theirLastMessageIndex = findLastIndex(messages, (m: Message) => m.senderId === recipientUser.id);
   const showSeenIndicator = myLastMessageIndex !== -1 && theirLastMessageIndex > myLastMessageIndex;
   
-  const rightPosition = positionIndex * (CHATBOX_WIDTH + CHATBOX_GAP);
+  const rightOffset = positionIndex * (CHATBOX_WIDTH + CHATBOX_GAP);
+
+  const dynamicStyles: React.CSSProperties = {
+    transform: `translateX(-${rightOffset}px) translateY(${isVisible ? '0' : '100%'})`,
+    opacity: isVisible ? 1 : 0,
+    willChange: 'transform, opacity',
+  };
 
   return (
     <div 
-        style={{ right: `${rightPosition}px` }}
-        className={`absolute bottom-0 w-80 h-[450px] rounded-t-lg shadow-2xl flex flex-col border border-lime-500/20 overflow-hidden ${theme.bgGradient} transition-all duration-300 ease-in-out pointer-events-auto ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
+        style={dynamicStyles}
+        className={`absolute bottom-0 right-0 w-80 h-[450px] rounded-t-lg shadow-2xl flex flex-col border border-lime-500/20 overflow-hidden ${theme.bgGradient} transition-transform transition-opacity duration-300 ease-in-out pointer-events-auto`}
     >
         <header className="flex-shrink-0 flex items-center justify-between p-2 border-b border-white/10 bg-black/20 backdrop-blur-sm z-20">
             <div className="flex items-center gap-3">

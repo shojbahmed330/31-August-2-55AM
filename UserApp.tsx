@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story } from './types';
 import AuthScreen from './components/AuthScreen';
@@ -347,8 +348,8 @@ const UserApp: React.FC = () => {
       
       await firebaseService.ensureChatDocumentExists(user, recipient);
       
-      // Add the new chat user to the beginning of the array, limit to 3 chats
-      setActiveChats(prev => [recipient, ...prev].slice(0, 3));
+      // Add the new chat user to the beginning of the array
+      setActiveChats(prev => [recipient, ...prev]);
       setTtsMessage(getTtsPrompt('message_screen_loaded', language, { name: recipient.name }));
   }, [user, activeChats, language]);
 
