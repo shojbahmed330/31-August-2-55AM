@@ -1068,8 +1068,10 @@ const UserApp: React.FC = () => {
         </main>
 
         {user && (
-            <div className={`${[AppView.MESSAGES].includes(currentView.view) ? 'invisible' : ''}`}>
-                <ContactsPanel friends={friends} onOpenConversation={handleOpenConversation} />
+            <div className="w-72 flex-shrink-0 hidden lg:block">
+                {![AppView.MESSAGES, AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM].includes(currentView.view) && (
+                    <ContactsPanel friends={friends} onOpenConversation={handleOpenConversation} />
+                )}
             </div>
         )}
 
