@@ -169,6 +169,7 @@ const UserApp: React.FC = () => {
   const [leadFormPost, setLeadFormPost] = useState<Post | null>(null);
   const [viewerPost, setViewerPost] = useState<Post | null>(null);
   const [isLoadingViewerPost, setIsLoadingViewerPost] = useState(false);
+  const [activeChats, setActiveChats] = useState<User[]>([]);
   const { language } = useSettings();
   
   const notificationPanelRef = useRef<HTMLDivElement>(null);
@@ -339,11 +340,19 @@ const UserApp: React.FC = () => {
     }
   };
   
-  const handleStartMessage = async (recipient: User) => {
-    if (!user) return;
-    await firebaseService.ensureChatDocumentExists(user, recipient);
-    navigate(AppView.MESSAGES, { recipient, ttsMessage: getTtsPrompt('message_screen_loaded', language, { name: recipient.name }) });
-  };
+  const handleOpenChatBox = useCallback(async (recipient: User) => {
+      if (!user) return;
+      if (activeChats.find(c => c.id === recipient.id)) return;
+      
+      await firebaseService.ensureChatDocumentExists(user, recipient);
+      
+      setActiveChats(prev => [recipient, ...prev].slice(0, 3));
+      setTtsMessage(getTtsPrompt('message_screen_loaded', language, { name: recipient.name }));
+  }, [user, activeChats, language]);
+
+  const handleCloseChatBox = useCallback((recipientId: string) => {
+      setActiveChats(prev => prev.filter(c => c.id !== recipientId));
+  }, []);
 
   const handleCommand = useCallback((command: string) => {
     setVoiceState(VoiceState.PROCESSING);
@@ -549,7 +558,7 @@ const UserApp: React.FC = () => {
         const sponsorUser = await firebaseService.getUserProfileById(post.sponsorId);
         if (sponsorUser) {
             setTtsMessage(`Opening conversation with ${sponsorUser.name}.`);
-            await handleStartMessage(sponsorUser);
+            await handleOpenChatBox(sponsorUser);
         } else {
             setTtsMessage(`Could not find sponsor ${post.sponsorName}.`);
         }
@@ -736,14 +745,6 @@ const UserApp: React.FC = () => {
     handleClosePhotoViewer(); // Close photo viewer if open before navigating
     navigate(AppView.CREATE_COMMENT, { postId, commentToReplyTo });
   };
-
-  const handleOpenConversation = async (peer: User) => {
-    if (!user) return;
-    // Ensure the chat document exists before navigating to the message screen.
-    // This prevents permission errors when trying to listen to messages of a non-existent chat.
-    await firebaseService.ensureChatDocumentExists(user, peer);
-    navigate(AppView.MESSAGES, { recipient: peer, ttsMessage: getTtsPrompt('message_screen_loaded', language, { name: peer.name }) });
-  };
   
     const handleBlockUser = async (userToBlock: User) => {
         if (!user) return;
@@ -844,11 +845,11 @@ const UserApp: React.FC = () => {
       case AppView.REELS:
         return <ReelsScreen {...commonScreenProps} posts={reelsPosts} isLoading={isLoadingReels} onReactToPost={handleReactToPost} onViewPost={handleViewPost} onStartComment={handleStartComment} onNavigate={navigate} />;
       case AppView.PROFILE:
-        return <ProfileScreen {...commonScreenProps} username={currentView.props.username} onStartMessage={handleStartMessage} onEditProfile={handleEditProfile} onViewPost={handleViewPost} onReactToPost={handleReactToPost} onCurrentUserUpdate={handleCurrentUserUpdate} onPostCreated={handlePostCreated} onBlockUser={handleBlockUser} />;
+        return <ProfileScreen {...commonScreenProps} username={currentView.props.username} onStartMessage={handleOpenChatBox} onEditProfile={handleEditProfile} onViewPost={handleViewPost} onReactToPost={handleReactToPost} onCurrentUserUpdate={handleCurrentUserUpdate} onPostCreated={handlePostCreated} onBlockUser={handleBlockUser} />;
       case AppView.POST_DETAILS:
         return <PostDetailScreen {...commonScreenProps} postId={currentView.props.postId} newlyAddedCommentId={currentView.props.newlyAddedCommentId} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment} onPostComment={handlePostComment} onEditComment={handleEditComment} onDeleteComment={handleDeleteComment} />;
       case AppView.FRIENDS:
-        return <FriendsScreen {...commonScreenProps} requests={friendRequests} friends={friends} onOpenConversation={handleOpenConversation} />;
+        return <FriendsScreen {...commonScreenProps} requests={friendRequests} friends={friends} onOpenConversation={handleOpenChatBox} />;
       case AppView.SEARCH_RESULTS:
         return <SearchResultsScreen {...commonScreenProps} results={searchResults} query={currentView.props.query} />;
       case AppView.SETTINGS:
@@ -860,9 +861,7 @@ const UserApp: React.FC = () => {
       case AppView.CREATE_COMMENT:
         return <CreateCommentScreen {...commonScreenProps} user={user!} postId={currentView.props.postId} onCommentPosted={handleCommentPosted} commentToReplyTo={currentView.props.commentToReplyTo} />;
       case AppView.CONVERSATIONS:
-        return <ConversationsScreen {...commonScreenProps} onOpenConversation={handleOpenConversation} />;
-      case AppView.MESSAGES:
-        return <MessageScreen {...commonScreenProps} recipientUser={currentView.props.recipient} onGoBack={goBack} onBlockUser={handleBlockUser}/>;
+        return <ConversationsScreen {...commonScreenProps} onOpenConversation={handleOpenChatBox} />;
       case AppView.ADS_CENTER:
         return <AdsScreen {...commonScreenProps} />;
       case AppView.ROOMS_HUB:
@@ -903,7 +902,7 @@ const UserApp: React.FC = () => {
   };
 
   const fullScreenViews: AppView[] = [
-      AppView.MESSAGES, AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM, AppView.REELS,
+      AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM, AppView.REELS,
       AppView.CREATE_REEL, AppView.CREATE_STORY, AppView.STORY_VIEWER, AppView.GROUP_CHAT,
       AppView.GROUP_EVENTS, AppView.CREATE_EVENT, AppView.GROUP_INVITE
   ];
@@ -1082,8 +1081,8 @@ const UserApp: React.FC = () => {
 
         {user && (
             <div className="w-72 flex-shrink-0 hidden lg:block">
-                {![AppView.MESSAGES, AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM, AppView.GROUP_CHAT, AppView.GROUP_EVENTS].includes(currentView.view) && (
-                    <ContactsPanel friends={friends} onOpenConversation={handleOpenConversation} />
+                {![AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM, AppView.GROUP_CHAT, AppView.GROUP_EVENTS].includes(currentView.view) && (
+                    <ContactsPanel friends={friends} onOpenConversation={handleOpenChatBox} />
                 )}
             </div>
         )}
@@ -1174,6 +1173,25 @@ const UserApp: React.FC = () => {
             onSharePost={handleSharePost}
         />
       )}
+
+       {/* Chat Boxes */}
+      {user && (
+          <div className="fixed bottom-0 right-4 flex items-end gap-4 z-50">
+            {activeChats.map((chatUser) => (
+              <MessageScreen
+                key={chatUser.id}
+                currentUser={user}
+                recipientUser={chatUser}
+                onSetTtsMessage={setTtsMessage}
+                lastCommand={lastCommand}
+                scrollState={'none'}
+                onBlockUser={handleBlockUser}
+                onGoBack={() => handleCloseChatBox(chatUser.id)}
+                onCommandProcessed={handleCommandProcessed}
+              />
+            ))}
+          </div>
+        )}
     </div>
   );
 };

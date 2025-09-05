@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Message, RecordingState, ScrollState, ChatTheme } from '../types';
 import { geminiService } from '../services/geminiService';
@@ -411,163 +409,165 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
     }
   };
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-full bg-slate-900"><p className="text-slate-300 text-xl">Loading messages...</p></div>;
-  }
-  
   const myLastMessageIndex = findLastIndex(messages, (m: Message) => m.senderId === currentUser.id);
   const theirLastMessageIndex = findLastIndex(messages, (m: Message) => m.senderId === recipientUser.id);
   const showSeenIndicator = myLastMessageIndex !== -1 && theirLastMessageIndex > myLastMessageIndex;
 
   return (
-    <div className={`h-full flex flex-col bg-slate-900 ${theme.bgGradient}`}>
-        <header className="flex-shrink-0 flex items-center justify-between p-3 border-b border-white/10 bg-black/20 backdrop-blur-sm z-20">
+    <div className={`w-80 h-[450px] rounded-t-lg shadow-2xl flex flex-col border border-lime-500/20 overflow-hidden ${theme.bgGradient}`}>
+        <header className="flex-shrink-0 flex items-center justify-between p-2 border-b border-white/10 bg-black/20 backdrop-blur-sm z-20">
             <div className="flex items-center gap-3">
-                <button onClick={onGoBack} className={`p-2 rounded-full hover:bg-white/10 ${theme.headerText}`}><Icon name="back" className="w-6 h-6"/></button>
-                <img src={recipientUser.avatarUrl} alt={recipientUser.name} className="w-10 h-10 rounded-full"/>
+                <img src={recipientUser.avatarUrl} alt={recipientUser.name} className="w-9 h-9 rounded-full"/>
                 <div>
-                    <p className={`font-bold text-lg ${theme.headerText}`}>{recipientUser.name}</p>
+                    <p className={`font-bold text-base ${theme.headerText}`}>{recipientUser.name}</p>
                 </div>
             </div>
             <div className="relative" ref={menuRef}>
-                <button onClick={() => setMenuOpen(p => !p)} className={`p-2 rounded-full hover:bg-white/10 ${theme.headerText}`}><Icon name="ellipsis-vertical" className="w-6 h-6"/></button>
-                {isMenuOpen && (
-                    <div className="absolute top-full right-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-20 text-white overflow-hidden animate-fade-in-fast">
+                <button onClick={() => setMenuOpen(p => !p)} className={`p-1.5 rounded-full hover:bg-white/10 ${theme.headerText}`}><Icon name="ellipsis-vertical" className="w-5 h-5"/></button>
+                 {isMenuOpen && (
+                    <div className="absolute top-full right-0 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-20 text-white overflow-hidden animate-fade-in-fast">
                        {isThemePickerOpen ? (
                            <div>
-                                <button onClick={() => setThemePickerOpen(false)} className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50">
-                                    <Icon name="back" className="w-5 h-5"/> Back
+                                <button onClick={() => setThemePickerOpen(false)} className="w-full text-left p-2 text-sm flex items-center gap-2 hover:bg-slate-700/50">
+                                    <Icon name="back" className="w-4 h-4"/> Back
                                 </button>
                                 <div className="border-t border-slate-700">
                                     {Object.entries(CHAT_THEMES).map(([key, value]) => (
-                                        <button key={key} onClick={() => handleThemeChange(key as ChatTheme)} className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50">
-                                            <div className={`w-5 h-5 rounded-full ${value.bgGradient}`}></div>
+                                        <button key={key} onClick={() => handleThemeChange(key as ChatTheme)} className="w-full text-left p-2 text-sm flex items-center gap-2 hover:bg-slate-700/50">
+                                            <div className={`w-4 h-4 rounded-full ${value.bgGradient}`}></div>
                                             {value.name}
-                                            {currentTheme === key && <Icon name="logo" className="w-5 h-5 text-rose-500 ml-auto"/>}
+                                            {currentTheme === key && <Icon name="logo" className="w-4 h-4 text-rose-500 ml-auto"/>}
                                         </button>
                                     ))}
                                 </div>
                            </div>
                        ) : (
-                           <ul>
-                               <li><button onClick={() => { setMenuOpen(false); onBlockUser(recipientUser);}} className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50"><Icon name="user-slash" className="w-5 h-5"/> Block User</button></li>
-                               <li><button onClick={() => setThemePickerOpen(true)} className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50"><Icon name="swatch" className="w-5 h-5"/> Change Theme</button></li>
-                               <li><button onClick={handleDeleteChat} className="w-full text-left p-3 flex items-center gap-3 text-red-400 hover:bg-red-500/10"><Icon name="trash" className="w-5 h-5"/> Delete Chat</button></li>
+                           <ul className="text-sm">
+                               <li><button onClick={(e) => { e.stopPropagation(); onBlockUser(recipientUser);}} className="w-full text-left p-2 flex items-center gap-2 hover:bg-slate-700/50"><Icon name="user-slash" className="w-4 h-4"/> Block</button></li>
+                               <li><button onClick={() => setThemePickerOpen(true)} className="w-full text-left p-2 flex items-center gap-2 hover:bg-slate-700/50"><Icon name="swatch" className="w-4 h-4"/> Theme</button></li>
+                               <li><button onClick={handleDeleteChat} className="w-full text-left p-2 flex items-center gap-2 text-red-400 hover:bg-red-500/10"><Icon name="trash" className="w-4 h-4"/> Delete</button></li>
                            </ul>
                        )}
                     </div>
                 )}
             </div>
+             <button onClick={onGoBack} className={`p-1.5 rounded-full hover:bg-white/10 ${theme.headerText}`}><Icon name="close" className="w-5 h-5"/></button>
         </header>
 
         <div ref={messageContainerRef} className="flex-grow overflow-y-auto p-4 space-y-1">
-            {messages.map((msg, index) => {
-                const isMine = msg.senderId === currentUser.id;
-                const prevMsg = messages[index - 1];
-                const showDate = !prevMsg || new Date(msg.createdAt).toDateString() !== new Date(prevMsg.createdAt).toDateString();
-                
-                return (
-                    <React.Fragment key={msg.id}>
-                        {showDate && <DateSeparator date={msg.createdAt} className={theme.text} />}
-                        <div className={`group flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                            <div 
-                                id={`message-${msg.id}`} 
-                                className={`flex items-end gap-2 relative ${isMine ? 'flex-row-reverse' : 'flex-row'} w-full`}
-                                onClick={() => setActiveMessageId(msg.id)}
-                                role="button"
-                                tabIndex={0}
-                            >
-                                <div className={`absolute -inset-1.5 rounded-xl transition-all pointer-events-none ${activeMessageId === msg.id ? 'ring-2 ring-rose-500/70' : 'ring-0 ring-transparent'}`}></div>
-                                {!isMine && <img src={recipientUser.avatarUrl} alt="" className="w-7 h-7 rounded-full self-end mb-1"/>}
-                                
-                                <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
-                                    {/* Action buttons appear on hover */}
-                                    <div className="relative">
-                                        <button onClick={(e) => { e.stopPropagation(); setEmojiPickerForMessageId(m => m === msg.id ? null : msg.id)}} className={`p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700/50`}>
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-300" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-.464 5.535a.75.75 0 01.083-1.05l-.001-.001.001-.001a.75.75 0 011.061 1.06l-1.06 1.06a.75.75 0 01-1.06-1.06z" clipRule="evenodd" /></svg>
+            {isLoading ? (
+                 <div className="flex items-center justify-center h-full"><p className="text-slate-300">Loading...</p></div>
+            ) : (
+            <>
+                {messages.map((msg, index) => {
+                    const isMine = msg.senderId === currentUser.id;
+                    const prevMsg = messages[index - 1];
+                    const showDate = !prevMsg || new Date(msg.createdAt).toDateString() !== new Date(prevMsg.createdAt).toDateString();
+                    
+                    return (
+                        <React.Fragment key={msg.id}>
+                            {showDate && <DateSeparator date={msg.createdAt} className={theme.text} />}
+                            <div className={`group flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                                <div 
+                                    id={`message-${msg.id}`} 
+                                    className={`flex items-end gap-2 relative ${isMine ? 'flex-row-reverse' : 'flex-row'} w-full`}
+                                    onClick={() => setActiveMessageId(msg.id)}
+                                    role="button"
+                                    tabIndex={0}
+                                >
+                                    <div className={`absolute -inset-1.5 rounded-xl transition-all pointer-events-none ${activeMessageId === msg.id ? 'ring-2 ring-rose-500/70' : 'ring-0 ring-transparent'}`}></div>
+                                    {!isMine && <img src={recipientUser.avatarUrl} alt="" className="w-7 h-7 rounded-full self-end mb-1"/>}
+                                    
+                                    <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
+                                        {/* Action buttons appear on hover */}
+                                        <div className="relative">
+                                            <button onClick={(e) => { e.stopPropagation(); setEmojiPickerForMessageId(m => m === msg.id ? null : msg.id)}} className={`p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700/50`}>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-300" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-.464 5.535a.75.75 0 01.083-1.05l-.001-.001.001-.001a.75.75 0 011.061 1.06l-1.06 1.06a.75.75 0 01-1.06-1.06z" clipRule="evenodd" /></svg>
+                                            </button>
+                                            {emojiPickerForMessageId === msg.id && (
+                                                <div ref={emojiPickerRef} className={`absolute bottom-full mb-2 p-2 grid grid-cols-5 gap-1 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl w-60 z-20 ${isMine ? 'right-0' : 'left-0'}`}>
+                                                    {AVAILABLE_REACTIONS.map(emoji => (
+                                                        <button key={emoji} onClick={(e) => { e.stopPropagation(); handleReactToMessage(msg.id, emoji); }} className="p-1.5 rounded-full hover:bg-slate-700 text-2xl transition-transform hover:scale-125">{emoji}</button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); }} className={`p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700/50`}>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-300" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                                         </button>
-                                        {emojiPickerForMessageId === msg.id && (
-                                             <div ref={emojiPickerRef} className={`absolute bottom-full mb-2 p-2 grid grid-cols-5 gap-1 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl w-60 z-20 ${isMine ? 'right-0' : 'left-0'}`}>
-                                                {AVAILABLE_REACTIONS.map(emoji => (
-                                                    <button key={emoji} onClick={(e) => { e.stopPropagation(); handleReactToMessage(msg.id, emoji); }} className="p-1.5 rounded-full hover:bg-slate-700 text-2xl transition-transform hover:scale-125">{emoji}</button>
+                                        {isMine && !msg.isDeleted &&
+                                            <div ref={actionsMenuRef} className="relative">
+                                                <button onClick={(e) => { e.stopPropagation(); setActionsMenuMessageId(mId => mId === msg.id ? null : msg.id); }} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700/50">
+                                                    <Icon name="ellipsis-vertical" className="w-5 h-5 text-slate-300" />
+                                                </button>
+                                                {actionsMenuMessageId === msg.id && (
+                                                    <div className={`absolute bottom-full mb-2 right-0 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl w-40 z-20`}>
+                                                        <button onClick={() => handleUnsendMessage(msg.id)} className="w-full text-left p-2 hover:bg-slate-700 text-red-400">Unsend Message</button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                                        <div className={`max-w-xs md:max-w-md rounded-2xl ${isMine ? `${theme.myBubble} rounded-br-md` : `${theme.theirBubble} rounded-bl-md`} ${msg.isDeleted ? 'bg-slate-700/50' : ''}`}>
+                                            {msg.isDeleted ? (
+                                                <p className={`px-3 py-2 text-sm italic ${theme.text} opacity-70`}>This message was unsent</p>
+                                            ) : (
+                                                <>
+                                                    {msg.replyTo && (
+                                                        <button onClick={(e) => { e.stopPropagation(); document.getElementById(`message-${msg.replyTo?.messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}} className="w-full text-left px-3 pt-2">
+                                                            <div className={`border-l-2 border-rose-400 pl-2 text-xs ${theme.text}`}>
+                                                                <p className="font-bold opacity-90">{msg.replyTo.senderName}</p>
+                                                                <p className="opacity-70 truncate">{msg.replyTo.content}</p>
+                                                            </div>
+                                                        </button>
+                                                    )}
+                                                    {msg.type === 'text' && <p className={`px-3 py-2 ${theme.text} whitespace-pre-wrap break-words`}>{msg.text}</p>}
+                                                    {msg.type === 'audio' && (
+                                                        <button onClick={(e) => { e.stopPropagation(); handlePlayMessage(msg)}} className={`p-2 flex items-center gap-3 text-left w-full ${theme.text}`}>
+                                                            <Icon name={playingMessageId === msg.id ? 'pause' : 'play'} className="w-5 h-5 flex-shrink-0" />
+                                                            <div className="h-8 flex-grow min-w-[100px]"><Waveform isPlaying={playingMessageId === msg.id} barCount={15} /></div>
+                                                            <span className="text-xs font-mono self-end pb-0.5">{msg.duration}s</span>
+                                                        </button>
+                                                    )}
+                                                    {msg.type === 'image' && <img src={msg.mediaUrl} alt="sent" className="w-full h-auto rounded-xl" />}
+                                                    {msg.type === 'video' && <video src={msg.mediaUrl} controls className="w-full h-auto rounded-xl" />}
+                                                </>
+                                            )}
+                                        </div>
+                                        {msg.reactions && Object.keys(msg.reactions).length > 0 && !msg.isDeleted && (
+                                            <div className="mt-1 flex gap-1">
+                                                {Object.entries(msg.reactions).map(([emoji, userIds]) => (
+                                                    <button key={emoji} onClick={(e) => {e.stopPropagation(); handleReactToMessage(msg.id, emoji)}} className={`px-2 py-0.5 text-xs rounded-full flex items-center gap-1 transition-colors ${userIds.includes(currentUser.id) ? 'bg-sky-500/80 text-white' : 'bg-slate-700/80 text-slate-200 hover:bg-slate-600/80'}`}>
+                                                        <span>{emoji}</span>
+                                                        <span className="font-semibold">{userIds.length}</span>
+                                                    </button>
                                                 ))}
                                             </div>
                                         )}
                                     </div>
-                                    <button onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); }} className={`p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700/50`}>
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-300" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                                    </button>
-                                    {isMine && !msg.isDeleted &&
-                                        <div ref={actionsMenuRef} className="relative">
-                                            <button onClick={(e) => { e.stopPropagation(); setActionsMenuMessageId(mId => mId === msg.id ? null : msg.id); }} className="p-1.5 rounded-full bg-slate-800/50 hover:bg-slate-700/50">
-                                                <Icon name="ellipsis-vertical" className="w-5 h-5 text-slate-300" />
-                                            </button>
-                                            {actionsMenuMessageId === msg.id && (
-                                                <div className={`absolute bottom-full mb-2 right-0 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl w-40 z-20`}>
-                                                    <button onClick={() => handleUnsendMessage(msg.id)} className="w-full text-left p-2 hover:bg-slate-700 text-red-400">Unsend Message</button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    }
-                                </div>
-
-                                <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                                    <div className={`max-w-xs md:max-w-md rounded-2xl ${isMine ? `${theme.myBubble} rounded-br-md` : `${theme.theirBubble} rounded-bl-md`} ${msg.isDeleted ? 'bg-slate-700/50' : ''}`}>
-                                        {msg.isDeleted ? (
-                                            <p className={`px-3 py-2 text-sm italic ${theme.text} opacity-70`}>This message was unsent</p>
-                                        ) : (
-                                            <>
-                                                {msg.replyTo && (
-                                                    <button onClick={(e) => { e.stopPropagation(); document.getElementById(`message-${msg.replyTo?.messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}} className="w-full text-left px-3 pt-2">
-                                                        <div className={`border-l-2 border-rose-400 pl-2 text-xs ${theme.text}`}>
-                                                            <p className="font-bold opacity-90">{msg.replyTo.senderName}</p>
-                                                            <p className="opacity-70 truncate">{msg.replyTo.content}</p>
-                                                        </div>
-                                                    </button>
-                                                )}
-                                                {msg.type === 'text' && <p className={`px-3 py-2 ${theme.text} whitespace-pre-wrap break-words`}>{msg.text}</p>}
-                                                {msg.type === 'audio' && (
-                                                    <button onClick={(e) => { e.stopPropagation(); handlePlayMessage(msg)}} className={`p-2 flex items-center gap-3 text-left w-full ${theme.text}`}>
-                                                        <Icon name={playingMessageId === msg.id ? 'pause' : 'play'} className="w-5 h-5 flex-shrink-0" />
-                                                        <div className="h-8 flex-grow min-w-[100px]"><Waveform isPlaying={playingMessageId === msg.id} barCount={15} /></div>
-                                                        <span className="text-xs font-mono self-end pb-0.5">{msg.duration}s</span>
-                                                    </button>
-                                                )}
-                                                {msg.type === 'image' && <img src={msg.mediaUrl} alt="sent" className="w-full h-auto rounded-xl" />}
-                                                {msg.type === 'video' && <video src={msg.mediaUrl} controls className="w-full h-auto rounded-xl" />}
-                                            </>
-                                        )}
-                                    </div>
-                                    {msg.reactions && Object.keys(msg.reactions).length > 0 && !msg.isDeleted && (
-                                        <div className="mt-1 flex gap-1">
-                                            {Object.entries(msg.reactions).map(([emoji, userIds]) => (
-                                                <button key={emoji} onClick={(e) => {e.stopPropagation(); handleReactToMessage(msg.id, emoji)}} className={`px-2 py-0.5 text-xs rounded-full flex items-center gap-1 transition-colors ${userIds.includes(currentUser.id) ? 'bg-sky-500/80 text-white' : 'bg-slate-700/80 text-slate-200 hover:bg-slate-600/80'}`}>
-                                                    <span>{emoji}</span>
-                                                    <span className="font-semibold">{userIds.length}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
                                 </div>
                             </div>
+                        </React.Fragment>
+                    );
+                })}
+                {isRecipientTyping && (
+                    <div className="flex items-end gap-2 justify-start animate-fade-in-fast">
+                        <img src={recipientUser.avatarUrl} alt="" className="w-7 h-7 rounded-full self-end mb-1"/>
+                        <div className={`p-2 rounded-2xl flex items-center gap-3 text-left transition-colors ${theme.theirBubble} rounded-bl-md`}>
+                            <div className="h-8 flex-grow min-w-[100px]"><Waveform isPlaying={true} barCount={15} /></div>
                         </div>
-                    </React.Fragment>
-                );
-            })}
-            {isRecipientTyping && (
-                <div className="flex items-end gap-2 justify-start animate-fade-in-fast">
-                    <img src={recipientUser.avatarUrl} alt="" className="w-7 h-7 rounded-full self-end mb-1"/>
-                    <div className={`p-2 rounded-2xl flex items-center gap-3 text-left transition-colors ${theme.theirBubble} rounded-bl-md`}>
-                        <div className="h-8 flex-grow min-w-[100px]"><Waveform isPlaying={true} barCount={15} /></div>
                     </div>
-                </div>
+                )}
+                {showSeenIndicator && (
+                    <div className={`text-right text-xs pr-2 ${theme.text}/70`}>
+                        Seen
+                    </div>
+                )}
+                <div ref={chatEndRef}></div>
+            </>
             )}
-            {showSeenIndicator && (
-                <div className={`text-right text-xs pr-2 ${theme.text}/70`}>
-                    Seen
-                </div>
-            )}
-            <div ref={chatEndRef}></div>
         </div>
 
         <footer className={`flex-shrink-0 border-t border-white/10 bg-black/20 backdrop-blur-sm z-10`}>
