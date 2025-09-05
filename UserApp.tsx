@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story } from './types';
 import AuthScreen from './components/AuthScreen';
@@ -316,7 +315,12 @@ const UserApp: React.FC = () => {
         unsubscribeAcceptedRequests();
         handleClosePhotoViewer();
     };
-  }, [initialDeepLink, language, handleClosePhotoViewer, handleLogout]);
+  // *** THE FIX IS HERE ***
+  // By removing currentView.view from the dependency array, this entire effect
+  // will now only run when the authentication state changes (login/logout),
+  // not on every navigation. This stops the listeners from being constantly
+  // destroyed and recreated, which was causing the data to refetch and the UI to "flicker".
+  }, [language, handleLogout]);
 
   useEffect(() => {
     setTtsMessage(getTtsPrompt('welcome', language));
