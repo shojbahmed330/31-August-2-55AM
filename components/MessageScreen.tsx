@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Message, RecordingState, ScrollState, ChatTheme } from '../types';
 import { geminiService } from '../services/geminiService';
@@ -96,19 +95,6 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
   const audioChunksRef = useRef<Blob[]>([]);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const rafId = requestAnimationFrame(() => {
-        setIsVisible(true);
-    });
-
-    return () => {
-        cancelAnimationFrame(rafId);
-    };
-  }, []);
-
-
   useOnClickOutside(menuRef, () => {
     setMenuOpen(false);
     setThemePickerOpen(false);
@@ -120,10 +106,7 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
   const chatId = React.useMemo(() => firebaseService.getChatId(currentUser.id, recipientUser.id), [currentUser.id, recipientUser.id]);
 
   const handleClose = useCallback(() => {
-    setIsVisible(false);
-    setTimeout(() => {
-        onClose();
-    }, 300); // Match animation duration
+    onClose();
   }, [onClose]);
 
   useEffect(() => {
@@ -414,7 +397,6 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
                     </div>
                 )}
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                    <input type="file" accept="image/*,video/*" ref={fileInputRef} onChange={handleFileChange} className="hidden"/>
                     <button type="button" onClick={() => fileInputRef.current?.click()} className={`p-3 rounded-full hover:bg-white/10 transition-colors ${theme.text}`}><Icon name="add-circle" className="w-6 h-6"/></button>
                     <input 
                         type="text"
@@ -439,10 +421,9 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
   const rightOffset = positionIndex * (CHATBOX_WIDTH + CHATBOX_GAP);
 
   const dynamicStyles: React.CSSProperties = {
-    transform: `translateX(-${rightOffset}px) translateY(${isVisible ? '0' : '100%'})`,
-    opacity: isVisible ? 1 : 0,
-    transition: 'transform 300ms ease-out, opacity 200ms ease-out',
-    willChange: 'transform, opacity',
+    transform: `translateX(-${rightOffset}px)`,
+    transition: 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+    willChange: 'transform',
   };
 
   return (
