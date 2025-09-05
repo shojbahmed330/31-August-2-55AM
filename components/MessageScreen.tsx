@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { User, Message, RecordingState, ScrollState, ChatTheme } from '../types';
 import { geminiService } from '../services/geminiService';
 import Icon from './Icon';
@@ -120,7 +120,7 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isRecipientTyping, replyingTo]);
+  }, [messages, isRecipientTyping]);
   
   useEffect(() => {
     const scrollContainer = messageContainerRef.current;
@@ -416,11 +416,11 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
   
   const rightOffset = positionIndex * (CHATBOX_WIDTH + CHATBOX_GAP);
 
-  const dynamicStyles: React.CSSProperties = {
+  const dynamicStyles: React.CSSProperties = useMemo(() => ({
     transform: `translateX(-${rightOffset}px)`,
     transition: 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
     willChange: 'transform',
-  };
+  }), [rightOffset]);
 
   return (
     <div 
