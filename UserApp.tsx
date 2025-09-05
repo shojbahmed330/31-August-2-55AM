@@ -315,11 +315,6 @@ const UserApp: React.FC = () => {
         unsubscribeAcceptedRequests();
         handleClosePhotoViewer();
     };
-  // *** THE FIX IS HERE ***
-  // By removing currentView.view from the dependency array, this entire effect
-  // will now only run when the authentication state changes (login/logout),
-  // not on every navigation. This stops the listeners from being constantly
-  // destroyed and recreated, which was causing the data to refetch and the UI to "flicker".
   }, [language, handleLogout]);
 
   useEffect(() => {
@@ -1072,8 +1067,10 @@ const UserApp: React.FC = () => {
           {renderView()}
         </main>
 
-        {user && ![AppView.MESSAGES].includes(currentView.view) && (
-             <ContactsPanel friends={friends} onOpenConversation={handleOpenConversation} />
+        {user && (
+            <div className={`${[AppView.MESSAGES].includes(currentView.view) ? 'invisible' : ''}`}>
+                <ContactsPanel friends={friends} onOpenConversation={handleOpenConversation} />
+            </div>
         )}
 
       </div>
