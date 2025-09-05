@@ -114,14 +114,14 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
     setIsLoading(true);
     const unsubscribe = firebaseService.listenToMessages(chatId, (newMessages) => {
         setMessages(newMessages);
-        if (isLoading) { // Only do these on first load
-            firebaseService.markMessagesAsRead(chatId, currentUser.id);
-            setIsLoading(false);
-        }
+        // We only want to mark as read and set loading to false on the initial load.
+        // The isLoading flag helps us track this.
+        firebaseService.markMessagesAsRead(chatId, currentUser.id);
+        setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, [chatId, currentUser.id, isLoading]);
+  }, [chatId, currentUser.id]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
