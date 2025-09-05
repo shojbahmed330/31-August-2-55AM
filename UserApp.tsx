@@ -971,8 +971,15 @@ const UserApp: React.FC = () => {
                 {/* Desktop Nav Icons can go here */}
             </div>
             
-            {user && ![AppView.MESSAGES, AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM].includes(currentView?.view) && (
-                <div ref={notificationPanelRef} className="flex items-center gap-2 sm:gap-4 flex-shrink-0 relative">
+            {user && (
+                <div 
+                    ref={notificationPanelRef} 
+                    className={`flex items-center gap-2 sm:gap-4 flex-shrink-0 relative transition-opacity duration-200 ${
+                        [AppView.MESSAGES, AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM].includes(currentView?.view) 
+                        ? 'opacity-0 pointer-events-none' 
+                        : 'opacity-100'
+                    }`}
+                >
                     <button onClick={() => setIsMobileSearchOpen(true)} aria-label="Search" className={`p-2.5 rounded-full transition-colors md:hidden border bg-slate-900 hover:bg-slate-800 border-lime-500/30`}>
                         <svg className="w-5 h-5 text-lime-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
                             <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
