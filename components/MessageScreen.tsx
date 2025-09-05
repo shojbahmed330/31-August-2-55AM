@@ -405,7 +405,7 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         placeholder="Type a message..."
-                        className={`w-full bg-black/20 rounded-full py-3 px-4 focus:outline-none focus:ring-2 focus:ring-rose-500 transition ${theme.text}`}
+                        className={`w-full bg-black/20 rounded-full py-3 px-4 h-12 focus:outline-none focus:ring-2 focus:ring-rose-500 transition ${theme.text}`}
                     />
                     <button type={canSend ? 'submit' : 'button'} onClick={!canSend ? startRecording : undefined} className="p-3 rounded-full bg-rose-600 hover:bg-rose-500 text-white transition-colors">
                         <Icon name={canSend ? 'paper-airplane' : 'mic'} className="w-6 h-6"/>
