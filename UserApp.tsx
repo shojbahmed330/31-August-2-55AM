@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppView, User, VoiceState, Post, Comment, ScrollState, Notification, Campaign, Group, Story } from './types';
 import AuthScreen from './components/AuthScreen';
@@ -903,6 +902,13 @@ const UserApp: React.FC = () => {
     }
   };
 
+  const fullScreenViews: AppView[] = [
+      AppView.MESSAGES, AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM, AppView.REELS,
+      AppView.CREATE_REEL, AppView.CREATE_STORY, AppView.STORY_VIEWER, AppView.GROUP_CHAT,
+      AppView.GROUP_EVENTS, AppView.CREATE_EVENT, AppView.GROUP_INVITE
+  ];
+
+  const isFullScreenView = fullScreenViews.includes(currentView.view);
 
   return (
     <div className={`h-screen w-screen flex flex-col ${user ? 'bg-black text-lime-300' : 'bg-slate-100 text-gray-800'}`}>
@@ -1063,13 +1069,13 @@ const UserApp: React.FC = () => {
                 onMicClick={handleMicClick}
             />
         )}
-        <main className="flex-grow overflow-y-auto no-scrollbar py-6">
+        <main className={`flex-grow overflow-y-auto no-scrollbar py-6 ${isFullScreenView ? 'max-w-none' : 'max-w-lg mx-auto'}`}>
           {renderView()}
         </main>
 
         {user && (
             <div className="w-72 flex-shrink-0 hidden lg:block">
-                {![AppView.MESSAGES, AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM].includes(currentView.view) && (
+                {![AppView.MESSAGES, AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM, AppView.GROUP_CHAT, AppView.GROUP_EVENTS].includes(currentView.view) && (
                     <ContactsPanel friends={friends} onOpenConversation={handleOpenConversation} />
                 )}
             </div>
