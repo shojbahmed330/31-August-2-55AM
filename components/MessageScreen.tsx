@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Message, RecordingState, ScrollState, ChatTheme } from '../types';
 import { geminiService } from '../services/geminiService';
@@ -69,7 +70,6 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
   const [isMenuOpen, setMenuOpen] = useState(false);
   const [isThemePickerOpen, setThemePickerOpen] = useState(false);
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
-  const [isMounted, setIsMounted] = useState(false);
   
   // New states for reply and reactions
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -96,6 +96,18 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
   const audioChunksRef = useRef<Blob[]>([]);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const rafId = requestAnimationFrame(() => {
+        setIsVisible(true);
+    });
+
+    return () => {
+        cancelAnimationFrame(rafId);
+    };
+  }, []);
+
 
   useOnClickOutside(menuRef, () => {
     setMenuOpen(false);
@@ -107,17 +119,11 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
   
   const chatId = React.useMemo(() => firebaseService.getChatId(currentUser.id, recipientUser.id), [currentUser.id, recipientUser.id]);
 
-  useEffect(() => {
-    // This timeout ensures the component is in the DOM with its initial (hidden) state
-    // before the 'isMounted' state triggers the transition to the visible state.
-    // This is the definitive fix for the "jumping" issue.
-    const timer = setTimeout(() => setIsMounted(true), 50); 
-    return () => clearTimeout(timer);
-  }, []);
-
   const handleClose = useCallback(() => {
-    setIsMounted(false); // Trigger slide-out animation
-    setTimeout(onClose, 300); // Call parent's onClose after animation duration
+    setIsVisible(false);
+    setTimeout(() => {
+        onClose();
+    }, 300); // Match animation duration
   }, [onClose]);
 
   useEffect(() => {
@@ -433,14 +439,16 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
   const rightOffset = positionIndex * (CHATBOX_WIDTH + CHATBOX_GAP);
 
   const dynamicStyles: React.CSSProperties = {
-    transform: `translateX(-${rightOffset}px) translateY(${isMounted ? '0' : '450px'})`,
-    willChange: 'transform',
+    transform: `translateX(-${rightOffset}px) translateY(${isVisible ? '0' : '100%'})`,
+    opacity: isVisible ? 1 : 0,
+    transition: 'transform 300ms ease-out, opacity 200ms ease-out',
+    willChange: 'transform, opacity',
   };
 
   return (
     <div 
         style={dynamicStyles}
-        className={`absolute bottom-0 right-0 w-80 h-[450px] rounded-t-lg shadow-2xl flex flex-col border border-lime-500/20 overflow-hidden ${theme.bgGradient} transition-transform duration-300 ease-in-out pointer-events-auto`}
+        className={`absolute bottom-0 right-0 w-80 h-[450px] rounded-t-lg shadow-2xl flex flex-col border border-lime-500/20 overflow-hidden ${theme.bgGradient} pointer-events-auto`}
     >
         <header className="flex-shrink-0 flex items-center justify-between p-2 border-b border-white/10 bg-black/20 backdrop-blur-sm z-20">
             <div className="flex items-center gap-3">
