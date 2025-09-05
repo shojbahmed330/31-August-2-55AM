@@ -342,10 +342,12 @@ const UserApp: React.FC = () => {
   
   const handleOpenChatBox = useCallback(async (recipient: User) => {
       if (!user) return;
-      if (activeChats.find(c => c.id === recipient.id)) return;
+      // If chat is already open, do nothing
+      if (activeChats.some(c => c.id === recipient.id)) return;
       
       await firebaseService.ensureChatDocumentExists(user, recipient);
       
+      // Add the new chat user to the beginning of the array, limit to 3 chats
       setActiveChats(prev => [recipient, ...prev].slice(0, 3));
       setTtsMessage(getTtsPrompt('message_screen_loaded', language, { name: recipient.name }));
   }, [user, activeChats, language]);
@@ -1082,7 +1084,7 @@ const UserApp: React.FC = () => {
         {user && (
             <div className="w-72 flex-shrink-0 hidden lg:block">
                 {![AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM, AppView.GROUP_CHAT, AppView.GROUP_EVENTS].includes(currentView.view) && (
-                    <ContactsPanel friends={friends} onOpenConversation={handleOpenChatBox} />
+                    <ContactsPanel friends={friends} onOpenChatBox={handleOpenChatBox} />
                 )}
             </div>
         )}
@@ -1176,7 +1178,7 @@ const UserApp: React.FC = () => {
 
        {/* Chat Boxes */}
       {user && (
-          <div className="fixed bottom-0 right-4 flex items-end gap-4 z-50">
+          <div className="fixed bottom-0 right-4 flex items-end gap-4 z-50 pointer-events-none">
             {activeChats.map((chatUser) => (
               <MessageScreen
                 key={chatUser.id}
@@ -1186,7 +1188,7 @@ const UserApp: React.FC = () => {
                 lastCommand={lastCommand}
                 scrollState={'none'}
                 onBlockUser={handleBlockUser}
-                onGoBack={() => handleCloseChatBox(chatUser.id)}
+                onClose={() => handleCloseChatBox(chatUser.id)}
                 onCommandProcessed={handleCommandProcessed}
               />
             ))}
