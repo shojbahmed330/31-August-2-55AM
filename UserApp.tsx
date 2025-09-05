@@ -1178,8 +1178,8 @@ const UserApp: React.FC = () => {
 
        {/* Chat Boxes */}
       {user && (
-          <div className="fixed bottom-0 right-4 flex items-end gap-4 z-50 pointer-events-none">
-            {activeChats.map((chatUser) => (
+          <div className="fixed bottom-0 right-4 z-50 pointer-events-none">
+            {activeChats.map((chatUser, index) => (
               <MessageScreen
                 key={chatUser.id}
                 currentUser={user}
@@ -1190,6 +1190,7 @@ const UserApp: React.FC = () => {
                 onBlockUser={handleBlockUser}
                 onClose={() => handleCloseChatBox(chatUser.id)}
                 onCommandProcessed={handleCommandProcessed}
+                positionIndex={index}
               />
             ))}
           </div>

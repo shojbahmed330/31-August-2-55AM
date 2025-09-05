@@ -16,9 +16,12 @@ interface MessageScreenProps {
   onBlockUser: (user: User) => void;
   onClose: () => void;
   onCommandProcessed: () => void;
+  positionIndex: number;
 }
 
 const AVAILABLE_REACTIONS = ['❤️', '😂', '👍', '😢', '🔥', '😮', '😡', '🙏', '🎉', '💯'];
+const CHATBOX_WIDTH = 320; // w-80 (80 * 4px)
+const CHATBOX_GAP = 16;    // gap-4 (4 * 4px)
 
 const DateSeparator = ({ date, className }: { date: string, className?: string }) => {
     const formattedDate = new Date(date).toLocaleDateString('en-US', {
@@ -57,7 +60,7 @@ const useOnClickOutside = (ref: React.RefObject<HTMLElement>, handler: (event: M
     }, [ref, handler]);
 };
 
-const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUser, onSetTtsMessage, lastCommand, scrollState, onBlockUser, onClose, onCommandProcessed }) => {
+const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUser, onSetTtsMessage, lastCommand, scrollState, onBlockUser, onClose, onCommandProcessed, positionIndex }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [recordingState, setRecordingState] = useState<RecordingState>(RecordingState.IDLE);
@@ -424,9 +427,14 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
   const myLastMessageIndex = findLastIndex(messages, (m: Message) => m.senderId === currentUser.id);
   const theirLastMessageIndex = findLastIndex(messages, (m: Message) => m.senderId === recipientUser.id);
   const showSeenIndicator = myLastMessageIndex !== -1 && theirLastMessageIndex > myLastMessageIndex;
+  
+  const rightPosition = positionIndex * (CHATBOX_WIDTH + CHATBOX_GAP);
 
   return (
-    <div className={`w-80 h-[450px] rounded-t-lg shadow-2xl flex flex-col border border-lime-500/20 overflow-hidden ${theme.bgGradient} transition-all duration-300 ease-in-out pointer-events-auto ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}>
+    <div 
+        style={{ right: `${rightPosition}px` }}
+        className={`absolute bottom-0 w-80 h-[450px] rounded-t-lg shadow-2xl flex flex-col border border-lime-500/20 overflow-hidden ${theme.bgGradient} transition-all duration-300 ease-in-out pointer-events-auto ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
+    >
         <header className="flex-shrink-0 flex items-center justify-between p-2 border-b border-white/10 bg-black/20 backdrop-blur-sm z-20">
             <div className="flex items-center gap-3">
                 <img src={recipientUser.avatarUrl} alt={recipientUser.name} className="w-9 h-9 rounded-full"/>
