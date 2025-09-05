@@ -1076,7 +1076,7 @@ const UserApp: React.FC = () => {
                 onMicClick={handleMicClick}
             />
         )}
-        <main className={`flex-grow overflow-y-auto no-scrollbar py-6 ${isFullScreenView ? 'max-w-none' : 'max-w-lg mx-auto'}`}>
+        <main className="flex-grow overflow-y-auto no-scrollbar">
           {renderView()}
         </main>
 
