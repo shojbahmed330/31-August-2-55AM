@@ -104,11 +104,7 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
   useOnClickOutside(emojiPickerRef, () => setEmojiPickerForMessageId(null));
   
   const chatId = React.useMemo(() => firebaseService.getChatId(currentUser.id, recipientUser.id), [currentUser.id, recipientUser.id]);
-
-  const handleClose = useCallback(() => {
-    onClose();
-  }, [onClose]);
-
+  
   useEffect(() => {
     setIsLoading(true);
     const unsubscribe = firebaseService.listenToMessages(chatId, (newMessages) => {
@@ -270,7 +266,7 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
     if (window.confirm("Are you sure you want to permanently delete this chat history?")) {
         await firebaseService.deleteChatHistory(chatId);
         onSetTtsMessage(getTtsPrompt('chat_deleted', language));
-        handleClose();
+        onClose();
     }
   };
   
@@ -318,7 +314,7 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
         }
 
         switch(intentResponse.intent) {
-            case 'intent_go_back': handleClose(); break;
+            case 'intent_go_back': onClose(); break;
             case 'intent_record_message': if (recordingState === RecordingState.IDLE) startRecording(); break;
             case 'intent_stop_recording': if (recordingState === RecordingState.RECORDING) stopRecording(); break;
             case 'intent_send_chat_message': 
@@ -345,7 +341,7 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
     } finally {
         onCommandProcessed();
     }
-  }, [messages, recipientUser.id, activeMessageId, recordingState, startRecording, stopRecording, sendAudioMessage, handleSendMessage, handleDeleteChat, handleThemeChange, handleClose, newMessage, mediaFile, currentUser.id, onSetTtsMessage, onCommandProcessed, language]);
+  }, [messages, recipientUser.id, activeMessageId, recordingState, startRecording, stopRecording, sendAudioMessage, handleSendMessage, handleDeleteChat, handleThemeChange, onClose, newMessage, mediaFile, currentUser.id, onSetTtsMessage, onCommandProcessed, language]);
 
   useEffect(() => { if (lastCommand) { handleCommand(lastCommand); } }, [lastCommand, handleCommand]);
   useEffect(() => () => { stopTimer(); if (playbackTimeoutRef.current) clearTimeout(playbackTimeoutRef.current); if(mediaPreview) URL.revokeObjectURL(mediaPreview); }, []);
@@ -467,7 +463,7 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
                     </div>
                 )}
             </div>
-             <button onClick={handleClose} className={`p-1.5 rounded-full hover:bg-white/10 ${theme.headerText}`}><Icon name="close" className="w-5 h-5"/></button>
+             <button onClick={onClose} className={`p-1.5 rounded-full hover:bg-white/10 ${theme.headerText}`}><Icon name="close" className="w-5 h-5"/></button>
         </header>
 
         <div ref={messageContainerRef} className="flex-grow overflow-y-auto p-4 space-y-1">
