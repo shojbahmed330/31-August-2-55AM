@@ -506,7 +506,7 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
             )}
         </div>
 
-        <footer className={`flex-shrink-0 border-t border-white/10 bg-black/20 backdrop-blur-sm z-10 h-[96px] flex items-center justify-center px-2`}>
+        <footer className={`flex-shrink-0 border-t border-white/10 bg-black/20 backdrop-blur-sm z-10 h-[96px] flex justify-center px-2 pt-4 box-border`}>
            {renderFooter()}
         </footer>
     </div>
