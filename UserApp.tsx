@@ -1179,7 +1179,7 @@ const UserApp: React.FC = () => {
 
        {/* Chat Boxes */}
       {user && (
-          <div className="fixed bottom-0 right-4 z-50 pointer-events-none">
+          <div className="fixed bottom-[128px] md:bottom-[76px] right-4 z-50 flex flex-row-reverse items-end gap-4 pointer-events-none">
             {activeChats.map((chatUser, index) => (
               <MessageScreen
                 key={chatUser.id}

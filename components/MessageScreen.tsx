@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { User, Message, RecordingState, ScrollState, ChatTheme } from '../types';
 import { geminiService } from '../services/geminiService';
@@ -348,68 +349,6 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
 
   const theme = CHAT_THEMES[currentTheme] || CHAT_THEMES.default;
 
-  const renderFooter = () => {
-    switch (recordingState) {
-      case RecordingState.RECORDING:
-        return (
-          <div className="w-full flex items-center gap-4">
-            <div className="w-full h-14 bg-black/20 rounded-lg overflow-hidden"><Waveform isPlaying={true} isRecording={true} /></div>
-            <div className={`text-lg font-mono ${theme.text}`}>0:{duration.toString().padStart(2, '0')}</div>
-            <button onClick={stopRecording} className="p-4 rounded-full bg-rose-600 hover:bg-rose-500 text-white transition-colors"><Icon name="pause" className="w-6 h-6" /></button>
-          </div>
-        );
-      case RecordingState.PREVIEW:
-        return (
-            <div className="w-full flex items-center justify-between gap-4">
-                <p className={`font-medium ${theme.text}`}>Recorded {duration}s</p>
-                <div className="flex items-center gap-3">
-                    <button onClick={startRecording} className="px-4 py-2 rounded-lg bg-black/20 hover:bg-black/30 text-white font-semibold transition-colors">Re-record</button>
-                    <button onClick={sendAudioMessage} className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold transition-colors">Send</button>
-                </div>
-            </div>
-        );
-      case RecordingState.UPLOADING: return <p className={`${theme.text}`}>Sending...</p>
-      default:
-        const canSend = newMessage.trim() !== '' || mediaFile !== null;
-        return (
-           <div className="w-full">
-                {replyingTo && (
-                    <div className={`p-2 mx-1 mb-2 rounded-lg border-l-4 border-rose-500 bg-black/20 ${theme.text}`}>
-                        <div className="flex justify-between items-center">
-                            <p className="font-semibold text-rose-400 text-sm">Replying to {replyingTo.senderId === currentUser.id ? 'yourself' : recipientUser.name}</p>
-                            <button onClick={() => setReplyingTo(null)} className="p-1"><Icon name="close" className="w-4 h-4" /></button>
-                        </div>
-                        <p className="text-sm opacity-80 truncate">{geminiService.createReplySnippet(replyingTo).content}</p>
-                    </div>
-                )}
-                {mediaPreview && (
-                    <div className="relative w-24 h-24 mb-2 p-1 bg-black/20 rounded-lg">
-                        {mediaFile?.type.startsWith('video') ? (
-                            <video src={mediaPreview} className="w-full h-full object-cover rounded"/>
-                        ) : (
-                            <img src={mediaPreview} alt="Preview" className="w-full h-full object-cover rounded"/>
-                        )}
-                        <button onClick={clearMediaPreview} className="absolute -top-2 -right-2 bg-slate-600 text-white rounded-full p-0.5"><Icon name="close" className="w-4 h-4"/></button>
-                    </div>
-                )}
-                <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className={`p-3 rounded-full hover:bg-white/10 transition-colors ${theme.text}`}><Icon name="add-circle" className="w-6 h-6"/></button>
-                    <input 
-                        type="text"
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder="Type a message..."
-                        className={`w-full bg-black/20 rounded-full py-3 px-4 focus:outline-none focus:ring-2 focus:ring-rose-500 transition ${theme.text}`}
-                    />
-                    <button type={canSend ? 'submit' : 'button'} onClick={!canSend ? startRecording : undefined} className="p-3 rounded-full bg-rose-600 hover:bg-rose-500 text-white transition-colors">
-                        <Icon name={canSend ? 'paper-airplane' : 'mic'} className="w-6 h-6"/>
-                    </button>
-                </form>
-            </div>
-        );
-    }
-  };
-
   const myLastMessageIndex = findLastIndex(messages, (m: Message) => m.senderId === currentUser.id);
   const theirLastMessageIndex = findLastIndex(messages, (m: Message) => m.senderId === recipientUser.id);
   const showSeenIndicator = myLastMessageIndex !== -1 && theirLastMessageIndex > myLastMessageIndex;
@@ -422,10 +361,80 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
     willChange: 'transform',
   }), [rightOffset]);
 
+  const renderFooterContent = () => {
+    switch (recordingState) {
+        case RecordingState.RECORDING:
+            return (
+                <div className="flex items-center gap-2 p-1 w-full">
+                    <button onClick={stopRecording} className="p-3 rounded-full bg-red-600 text-white flex-shrink-0">
+                        <Icon name="pause" className="w-5 h-5" />
+                    </button>
+                    <div className="w-full h-10 bg-black/20 rounded-full overflow-hidden">
+                        <Waveform isPlaying={true} isRecording={true} />
+                    </div>
+                    <div className={`text-sm font-mono flex-shrink-0 ${theme.text}`}>0:{duration.toString().padStart(2, '0')}</div>
+                </div>
+            );
+        case RecordingState.PREVIEW:
+             return (
+                <div className="flex items-center justify-between gap-2 p-1 w-full">
+                    <button onClick={() => { setAudioUrl(null); setRecordingState(RecordingState.IDLE); }} className="p-2 rounded-full hover:bg-black/20 text-red-500">
+                        <Icon name="trash" className="w-5 h-5" />
+                    </button>
+                    {audioUrl && <audio src={audioUrl} controls className="flex-grow h-10" />}
+                    <button onClick={sendAudioMessage} className="p-3 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex-shrink-0">
+                        <Icon name="paper-airplane" className="w-5 h-5" />
+                    </button>
+                </div>
+            );
+        case RecordingState.UPLOADING:
+             return <p className={`w-full text-center py-4 ${theme.text}`}>Sending...</p>
+        default:
+            const canSend = newMessage.trim() !== '' || mediaFile !== null;
+            return (
+                <div className="w-full">
+                    {replyingTo && (
+                         <div className={`p-2 mx-1 mb-1 rounded-lg border-l-4 border-rose-500 bg-black/20 ${theme.text}`}>
+                             <div className="flex justify-between items-center">
+                                <p className="font-semibold text-rose-400 text-sm">Replying to {replyingTo.senderId === currentUser.id ? 'yourself' : recipientUser.name}</p>
+                                <button onClick={() => setReplyingTo(null)} className="p-1"><Icon name="close" className="w-4 h-4" /></button>
+                             </div>
+                             <p className="text-sm opacity-80 truncate">{geminiService.createReplySnippet(replyingTo).content}</p>
+                         </div>
+                    )}
+                     {mediaPreview && (
+                         <div className="relative w-20 h-20 mb-2 ml-1 p-1 bg-black/20 rounded-lg">
+                             {mediaFile?.type.startsWith('video') ? (
+                                <video src={mediaPreview} className="w-full h-full object-cover rounded"/>
+                             ) : (
+                                <img src={mediaPreview} alt="Preview" className="w-full h-full object-cover rounded"/>
+                             )}
+                             <button onClick={clearMediaPreview} className="absolute -top-2 -right-2 bg-slate-600 text-white rounded-full p-0.5"><Icon name="close" className="w-4 h-4"/></button>
+                         </div>
+                    )}
+                    <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                        <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,video/*" className="hidden"/>
+                        <button type="button" onClick={() => fileInputRef.current?.click()} className={`p-2 rounded-full hover:bg-white/10 transition-colors ${theme.text}`}><Icon name="add-circle" className="w-6 h-6"/></button>
+                        <input 
+                            type="text"
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            placeholder="Type a message..."
+                            className={`w-full bg-black/20 rounded-full py-2 px-4 focus:outline-none focus:ring-2 focus:ring-rose-500 transition ${theme.text}`}
+                        />
+                        <button type={canSend ? 'submit' : 'button'} onClick={!canSend ? startRecording : undefined} className="p-3 rounded-full bg-rose-600 hover:bg-rose-500 text-white transition-colors">
+                            <Icon name={canSend ? 'paper-airplane' : 'mic'} className="w-6 h-6"/>
+                        </button>
+                    </form>
+                </div>
+            );
+    }
+  }
+
   return (
     <div 
         style={dynamicStyles}
-        className={`absolute bottom-0 right-0 w-80 h-[450px] rounded-t-lg shadow-2xl flex flex-col border border-lime-500/20 overflow-hidden ${theme.bgGradient} pointer-events-auto`}
+        className={`absolute bottom-0 right-0 w-80 h-[450px] rounded-t-lg shadow-2xl flex flex-col border border-lime-500/20 overflow-hidden ${theme.bgGradient} pointer-events-auto animate-fade-in-fast`}
     >
         <header className="flex-shrink-0 flex items-center justify-between p-2 border-b border-white/10 bg-black/20 backdrop-blur-sm z-20">
             <div className="flex items-center gap-3">
@@ -506,8 +515,8 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
             )}
         </div>
 
-        <footer className={`flex-shrink-0 border-t border-white/10 bg-black/20 backdrop-blur-sm z-10 h-[96px] flex justify-center px-2 pt-4 box-border`}>
-           {renderFooter()}
+        <footer className="flex-shrink-0 p-2 border-t border-white/10 bg-black/20 backdrop-blur-sm flex items-center min-h-[56px]">
+           {renderFooterContent()}
         </footer>
     </div>
   );
