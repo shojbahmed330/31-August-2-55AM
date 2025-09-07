@@ -1,4 +1,3 @@
-
 // @ts-nocheck
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
@@ -421,19 +420,57 @@ export const firebaseService = {
 
     listenToFriends(userId: string, callback: (friends: User[]) => void) {
         const userRef = db.collection('users').doc(userId);
-        return userRef.onSnapshot(async (userDoc) => {
-            if (userDoc.exists) {
-                const friendIds = userDoc.data()!.friendIds || [];
-                if (friendIds.length === 0) {
-                    callback([]);
-                    return;
+    
+        let friendListeners: { [friendId: string]: () => void } = {};
+        let friendsData: { [friendId: string]: User } = {};
+    
+        const mainUnsubscribe = userRef.onSnapshot((userDoc) => {
+            if (!userDoc.exists) {
+                Object.values(friendListeners).forEach(unsubscribe => unsubscribe());
+                friendListeners = {};
+                friendsData = {};
+                callback([]);
+                return;
+            }
+    
+            const newFriendIds = userDoc.data()?.friendIds || [];
+            const currentFriendIds = Object.keys(friendListeners);
+    
+            const removedFriendIds = currentFriendIds.filter(id => !newFriendIds.includes(id));
+            removedFriendIds.forEach(friendId => {
+                if (friendListeners[friendId]) {
+                    friendListeners[friendId]();
+                    delete friendListeners[friendId];
+                    delete friendsData[friendId];
                 }
-                const friends = await this.getUsersByIds(friendIds);
-                callback(friends);
-            } else {
+            });
+    
+            const addedFriendIds = newFriendIds.filter(id => !currentFriendIds.includes(id));
+            addedFriendIds.forEach(friendId => {
+                const friendRef = db.collection('users').doc(friendId);
+                friendListeners[friendId] = friendRef.onSnapshot(friendDoc => {
+                    if (friendDoc.exists) {
+                        friendsData[friendId] = docToUser(friendDoc);
+                    } else {
+                        delete friendsData[friendId];
+                    }
+                    callback(Object.values(friendsData));
+                });
+            });
+    
+            if (removedFriendIds.length > 0 && addedFriendIds.length === 0) {
+                callback(Object.values(friendsData));
+            }
+            
+            if (newFriendIds.length === 0) {
                 callback([]);
             }
         });
+    
+        return () => {
+            mainUnsubscribe();
+            Object.values(friendListeners).forEach(unsubscribe => unsubscribe());
+        };
     },
 
     async getCommonFriends(userId1: string, userId2: string): Promise<User[]> {
