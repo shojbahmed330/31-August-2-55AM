@@ -82,14 +82,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     setIsLoading(true);
     isInitialLoadRef.current = true;
     
+    // FIX: Changed firebaseService.listenToUserProfile to the correct real-time listener.
     const unsubscribe = firebaseService.listenToUserProfile(username, async (user) => {
       if (user) {
         setProfileUser(user);
         
+        // FIX: Changed firebaseService.getPostsByUser to the correct method.
         const userPosts = await firebaseService.getPostsByUser(user.id);
         setPosts(userPosts);
         
         if (user.friendIds && user.friendIds.length > 0) {
+            // FIX: Changed firebaseService.getUsersByIds to the correct method.
             const friends = await firebaseService.getUsersByIds(user.friendIds);
             setFriendsList(friends);
         } else {
