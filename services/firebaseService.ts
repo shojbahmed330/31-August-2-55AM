@@ -428,11 +428,7 @@ export const firebaseService = {
                     return;
                 }
                 const friends = await this.getUsersByIds(friendIds);
-                const friendsWithStatus = friends.map((friend, index) => ({
-                    ...friend,
-                    onlineStatus: index % 3 === 0 ? 'online' : 'offline',
-                }));
-                callback(friendsWithStatus);
+                callback(friends);
             } else {
                 callback([]);
             }
