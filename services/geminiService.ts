@@ -214,19 +214,16 @@ export const geminiService = {
   unfriendUser: (currentUserId: string, targetUserId: string) => firebaseService.unfriendUser(currentUserId, targetUserId),
   cancelFriendRequest: (currentUserId: string, targetUserId: string) => firebaseService.cancelFriendRequest(currentUserId, targetUserId),
   listenToAcceptedFriendRequests: (userId: string, callback: (acceptedRequests: any[]) => void) => firebaseService.listenToAcceptedFriendRequests(userId, callback),
-  // FIX: Corrected the type of 'acceptedByUser' from an inline object to the 'Author' type to match the expected data structure.
   finalizeFriendship: (currentUserId: string, acceptedByUser: Author) => firebaseService.finalizeFriendship(currentUserId, acceptedByUser),
 
   // --- This is a mock/simulated function ---
   async getRecommendedFriends(userId: string): Promise<User[]> {
-      // FIX: Changed firebaseService.getAllUsers() to firebaseService.getAllUsersForAdmin() which exists.
       const allUsers = await firebaseService.getAllUsersForAdmin();
       const currentUser = allUsers.find(u => u.id === userId);
       if (!currentUser) return [];
 
       const friendsAndRequests = new Set([
           ...currentUser.friendIds || [],
-          // FIX: Removed non-existent properties. This is a mock function, so its logic doesn't need to be perfect.
           userId
       ]);
 
@@ -248,7 +245,6 @@ export const geminiService = {
     return firebaseService.getUserProfileById(userId);
   },
   
-  // FIX: Added missing searchUsers function.
   searchUsers: (query: string): Promise<User[]> => firebaseService.searchUsers(query),
 
   async updateProfile(userId: string, updates: Partial<User>): Promise<void> {
@@ -272,7 +268,6 @@ export const geminiService = {
   },
 
   async changePassword(userId: string, currentPass: string, newPass: string): Promise<boolean> {
-      // This is a mock for demonstration. Real password changes need secure backend logic.
       const user = await firebaseService.getUserProfileById(userId);
       if (user && user.password === currentPass) {
           await firebaseService.updateProfile(userId, { password: newPass });
@@ -292,14 +287,9 @@ export const geminiService = {
 
   // --- Image Generation ---
   async generateImageForPost(prompt: string): Promise<string | null> {
-      // This is a mock function as image generation is a premium feature.
-      // In a real app, this would call the Gemini Image API.
-      // We will return a placeholder image from an external service.
       try {
-          // A simple hash to get a different image for different prompts
           const hash = prompt.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
           const imageUrl = `https://picsum.photos/seed/${hash}/1024`;
-          // We need to fetch and convert to base64 to simulate the behavior of the real API returning image bytes.
           const response = await fetch(imageUrl);
           const blob = await response.blob();
           return new Promise((resolve, reject) => {
@@ -318,38 +308,12 @@ export const geminiService = {
   getMusicLibrary(): MusicTrack[] {
       return MOCK_MUSIC_LIBRARY;
   },
-
-  // --- Mocks & Simulations ---
-  
-  // --- This is a mock/simulated function ---
-  async sendAudioPost(userId: string, duration: number, caption: string): Promise<Post> {
-    // FIX: firebaseService.createPost returns void. Construct and return a mock post object.
-    const user = await firebaseService.getUserProfileById(userId);
-    if (!user) throw new Error("User not found for creating post");
-    
-    const newPost: Post = {
-        id: `mock_${Date.now()}`,
-        author: { id: user.id, name: user.name, username: user.username, avatarUrl: user.avatarUrl },
-        audioUrl: '#', // Mock URL
-        caption: caption,
-        duration: duration,
-        createdAt: new Date().toISOString(),
-        commentCount: 0,
-        comments: [],
-        reactions: {},
-    };
-
-    await firebaseService.createPost(newPost, {});
-    return newPost;
-  },
   
   // --- Posts ---
-  listenToFeedPosts(currentUserId: string, callback: (posts: Post[]) => void) {
-      return firebaseService.listenToFeedPosts(currentUserId, callback);
-  },
+  listenToFeedPosts: (currentUserId: string, callback: (posts: Post[]) => void) => firebaseService.listenToFeedPosts(currentUserId, callback),
+  listenToReelsPosts: (callback: (posts: Post[]) => void) => firebaseService.listenToReelsPosts(callback),
 
    // --- Messages ---
-// FIX: Add passthrough exports for chat-related methods to fix multiple errors.
   getChatId: (user1Id, user2Id) => firebaseService.getChatId(user1Id, user2Id),
   listenToMessages: (chatId, callback) => firebaseService.listenToMessages(chatId, callback),
   listenToConversations: (userId, callback) => firebaseService.listenToConversations(userId, callback),
@@ -375,14 +339,12 @@ export const geminiService = {
         }
         return {
             messageId: message.id,
-            // In a real app, you might fetch the name, but senderId is sufficient for a snippet
             senderName: message.senderId,
             content: content
         };
     },
 
     // --- Rooms ---
-    // @FIXML-FIX: Add missing pass-through functions to resolve multiple errors.
     listenToLiveAudioRooms: (callback: (rooms: LiveAudioRoom[]) => void) => firebaseService.listenToLiveAudioRooms(callback),
     listenToLiveVideoRooms: (callback: (rooms: LiveVideoRoom[]) => void) => firebaseService.listenToLiveVideoRooms(callback),
     listenToAudioRoom: (roomId: string, callback: (room: LiveAudioRoom | null) => void) => firebaseService.listenToRoom(roomId, 'audio', callback),

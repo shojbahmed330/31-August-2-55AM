@@ -236,6 +236,7 @@ const UserApp: React.FC = () => {
 
         if (userAuth) {
             let isFirstLoad = true;
+            // FIX: Corrected the listener to use 'listenToCurrentUser' which is specific for the logged-in user.
             unsubscribeUserDoc = firebaseService.listenToCurrentUser(userAuth.id, async (userProfile) => {
                 if (userProfile && !userProfile.isDeactivated && !userProfile.isBanned) {
                     setUser(userProfile);
@@ -287,7 +288,8 @@ const UserApp: React.FC = () => {
                     console.log("Processing accepted friend requests:", acceptedRequests);
                     acceptedRequests.forEach(request => {
                         // Finalize the friendship: add them to our friend list and delete the request
-                        firebaseService.finalizeFriendship(userAuth.id, request.to);
+                        // FIX: Changed to use the correct user object from the request.
+                        firebaseService.finalizeFriendship(userAuth.id, request.fromUser);
                     });
                 }
             });
@@ -558,6 +560,7 @@ const UserApp: React.FC = () => {
         setTtsMessage(`Opening link for ${post.sponsorName}...`);
         window.open(post.websiteUrl, '_blank', 'noopener,noreferrer');
     } else if (post.allowDirectMessage && post.sponsorId) {
+        // FIX: Corrected method call to getUserProfileById
         const sponsorUser = await firebaseService.getUserProfileById(post.sponsorId);
         if (sponsorUser) {
             setTtsMessage(`Opening conversation with ${sponsorUser.name}.`);
@@ -566,6 +569,7 @@ const UserApp: React.FC = () => {
             setTtsMessage(`Could not find sponsor ${post.sponsorName}.`);
         }
     } else if (post.sponsorId) {
+        // FIX: Corrected method call to getUserProfileById
         const sponsorUser = await firebaseService.getUserProfileById(post.sponsorId);
         if (sponsorUser) {
             setTtsMessage(`Opening profile for ${sponsorUser.name}.`);
@@ -726,7 +730,6 @@ const UserApp: React.FC = () => {
                 setViewerPost(updatedPost);
             } else {
                 // The post was deleted from the backend while the user was viewing it.
-                // FIX: Corrected function call from onSetTtsMessage to setTtsMessage
                 setTtsMessage("This post is no longer available.");
                 handleClosePhotoViewer(); // This will close the modal gracefully.
             }
@@ -1172,7 +1175,6 @@ const UserApp: React.FC = () => {
             onEditComment={handleEditComment}
             onDeleteComment={handleDeleteComment}
             onOpenProfile={handleOpenProfile}
-            // FIX: Pass the correct handler `handleSharePost` instead of the undefined `onSharePost`.
             onSharePost={handleSharePost}
         />
       )}
