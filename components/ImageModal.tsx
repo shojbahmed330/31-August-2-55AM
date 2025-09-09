@@ -192,4 +192,113 @@ const ImageModal: React.FC<ImageModalProps> = ({ post, currentUser, isLoading, o
                 </div>
               </button>
               {post.caption && (
-                <p className
+                <p className="text-slate-300 mt-3 whitespace-pre-wrap">
+                    <TaggedContent text={post.caption} onTagClick={onOpenProfile} />
+                </p>
+              )}
+          </header>
+
+          <div className="flex-grow overflow-y-auto no-scrollbar p-4 space-y-4">
+            {commentThreads.length > 0 ? (
+                commentThreads.map(comment => (
+                     <div key={comment.id} className="flex flex-col gap-3">
+                         <CommentCard 
+                            comment={comment}
+                            currentUser={currentUser}
+                            isPlaying={playingCommentId === comment.id}
+                            onPlayPause={() => handlePlayComment(comment)}
+                            onAuthorClick={onOpenProfile}
+                            onReply={setReplyingTo}
+                            onReact={(commentId, emoji) => onReactToComment(post.id, commentId, emoji)}
+                            onEdit={(commentId, newText) => onEditComment(post.id, commentId, newText)}
+                            onDelete={(commentId) => onDeleteComment(post.id, commentId)}
+                         />
+                         {comment.replies.length > 0 && (
+                            <div className="ml-6 pl-4 border-l-2 border-slate-700 space-y-3">
+                                {comment.replies.map(reply => (
+                                     <CommentCard 
+                                        key={reply.id}
+                                        comment={reply}
+                                        currentUser={currentUser}
+                                        isPlaying={playingCommentId === reply.id}
+                                        isReply={true}
+                                        onPlayPause={() => handlePlayComment(reply)}
+                                        onAuthorClick={onOpenProfile}
+                                        onReply={setReplyingTo}
+                                        onReact={(commentId, emoji) => onReactToComment(post.id, commentId, emoji)}
+                                        onEdit={(commentId, newText) => onEditComment(post.id, commentId, newText)}
+                                        onDelete={(commentId) => onDeleteComment(post.id, commentId)}
+                                     />
+                                ))}
+                            </div>
+                         )}
+                     </div>
+                ))
+            ) : (
+                <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                    <Icon name="comment" className="w-12 h-12 mb-2" />
+                    <p>No comments yet.</p>
+                </div>
+            )}
+          </div>
+          
+          <footer className="flex-shrink-0 p-3 border-t border-slate-700">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="relative" onMouseEnter={handleMouseEnterPicker} onMouseLeave={handleMouseLeavePicker}>
+                     {isPickerOpen && (
+                          <div className="absolute bottom-full mb-2 bg-slate-800 border border-lime-500/20 rounded-full p-1.5 flex items-center gap-1 shadow-lg animate-fade-in-fast">
+                              {REACTIONS.map(emoji => (
+                                  <button key={emoji} onClick={(e) => handleReaction(e, emoji)} className="text-2xl p-1 rounded-full hover:bg-slate-700/50 transition-transform hover:scale-125">{emoji}</button>
+                              ))}
+                          </div>
+                      )}
+                      <button onClick={(e) => handleReaction(e, '👍')} className="p-2 rounded-full hover:bg-slate-700">
+                          <span className="text-2xl">{myReaction || '👍'}</span>
+                      </button>
+                  </div>
+                  <button onClick={() => commentInputRef.current?.focus()} className="p-2 rounded-full hover:bg-slate-700"><Icon name="comment" className="w-6 h-6 text-lime-400"/></button>
+                  <button onClick={() => onSharePost(post)} className="p-2 rounded-full hover:bg-slate-700"><Icon name="share" className="w-6 h-6 text-lime-400"/></button>
+                </div>
+                {reactionCount > 0 && (
+                    <button onClick={() => setIsReactionModalOpen(true)} className="flex items-center -space-x-2 hover:space-x-0 transition-all">
+                        {topReactions.map(emoji => <span key={emoji} className="text-lg border-2 border-slate-900 rounded-full">{emoji}</span>)}
+                        <span className="text-sm text-slate-400 ml-3 hover:underline">{reactionCount} reactions</span>
+                    </button>
+                )}
+              </div>
+
+             <div className="relative">
+                {replyingTo && (
+                    <div className="absolute bottom-full left-0 right-0 bg-slate-800 p-2 rounded-t-md text-sm text-slate-400 flex justify-between items-center">
+                        <span>Replying to {replyingTo.author.name}</span>
+                        <button onClick={() => setReplyingTo(null)} className="font-bold text-xs"><Icon name="close" className="w-4 h-4"/></button>
+                    </div>
+                )}
+                <form onSubmit={handlePostCommentSubmit} className="flex items-center gap-2">
+                    <img src={currentUser.avatarUrl} alt="Your avatar" className="w-9 h-9 rounded-full" />
+                    <input
+                        ref={commentInputRef}
+                        type="text"
+                        value={newCommentText}
+                        onChange={(e) => setNewCommentText(e.target.value)}
+                        placeholder="Add a comment..."
+                        className="flex-grow bg-slate-800 border border-slate-700 text-slate-100 rounded-full py-2 px-4 focus:ring-lime-500 focus:border-lime-500"
+                    />
+                </form>
+             </div>
+          </footer>
+      </aside>
+    </div>
+     {isReactionModalOpen && (
+          <ReactionListModal
+              isOpen={isReactionModalOpen}
+              onClose={() => setIsReactionModalOpen(false)}
+              reactions={post.reactions || {}}
+          />
+      )}
+    </>
+  );
+};
+
+export default ImageModal;

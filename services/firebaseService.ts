@@ -50,6 +50,33 @@ const docToPost = (doc: firebase.firestore.DocumentSnapshot): Post => {
     } as Post;
 }
 
+// FIX: Add a docToGroup helper function to ensure group objects are always correctly typed and have default values.
+const docToGroup = (doc: firebase.firestore.DocumentSnapshot): Group => {
+    const data = doc.data() || {};
+    return {
+        id: doc.id,
+        name: data.name || '',
+        slug: data.slug || '',
+        description: data.description || '',
+        coverPhotoUrl: data.coverPhotoUrl || '',
+        creator: data.creator || null,
+        members: data.members || [],
+        memberCount: data.memberCount || 0,
+        createdAt: data.createdAt instanceof firebase.firestore.Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+        category: data.category || 'General',
+        privacy: data.privacy || 'public',
+        admins: data.admins || [],
+        moderators: data.moderators || [],
+        requiresApproval: data.requiresApproval || false,
+        joinRequests: data.joinRequests || [],
+        pendingPosts: data.pendingPosts || [],
+        joinQuestions: data.joinQuestions || [],
+        invitedUserIds: data.invitedUserIds || [],
+        topContributorIds: data.topContributorIds || [],
+        pinnedPostId: data.pinnedPostId || undefined,
+    } as Group;
+}
+
 const docToRoom = (doc: firebase.firestore.DocumentSnapshot): LiveAudioRoom | LiveVideoRoom => {
     const data = doc.data() || {};
     return {
@@ -539,6 +566,8 @@ export const firebaseService = {
             author: { id: user.id, name: user.name, username: user.username, avatarUrl: url },
             caption: caption || `${user.name} updated their profile picture.`,
             captionStyle,
+            // FIX: Add missing duration property.
+            duration: 0,
             createdAt: serverTimestamp(),
             postType: 'profile_picture_change',
             newPhotoUrl: url,
@@ -565,6 +594,8 @@ export const firebaseService = {
             author: { id: user.id, name: user.name, username: user.username, avatarUrl: user.avatarUrl },
             caption: caption || `${user.name} updated their cover photo.`,
             captionStyle,
+            // FIX: Add missing duration property.
+            duration: 0,
             createdAt: serverTimestamp(),
             postType: 'cover_photo_change',
             newPhotoUrl: url,
@@ -788,7 +819,8 @@ export const firebaseService = {
     // Groups
     getGroupById: async (groupId) => {
         const doc = await db.collection('groups').doc(groupId).get();
-        return doc.exists ? { id: doc.id, ...doc.data() } : null;
+        // FIX: Use the docToGroup helper to ensure the returned object is correctly typed.
+        return doc.exists ? docToGroup(doc) : null;
     },
     getSuggestedGroups: async (userId) => {
       // Mock
@@ -796,7 +828,8 @@ export const firebaseService = {
     },
     createGroup: async (creator, name, description, coverPhotoUrl, privacy, requiresApproval, category) => {
         const newGroupRef = db.collection('groups').doc();
-        const newGroup = { id: newGroupRef.id, name, slug: name.toLowerCase().replace(/\s+/g, '-'), description, coverPhotoUrl, privacy, requiresApproval, category, creator, members: [creator], admins: [creator], memberCount: 1, createdAt: serverTimestamp() };
+        // FIX: Add missing 'moderators' property to satisfy the Group type.
+        const newGroup = { id: newGroupRef.id, name, slug: name.toLowerCase().replace(/\s+/g, '-'), description, coverPhotoUrl, privacy, requiresApproval, category, creator, members: [creator], admins: [creator], moderators: [], memberCount: 1, createdAt: serverTimestamp() };
         await newGroupRef.set(newGroup);
         return newGroup;
     },
@@ -813,8 +846,16 @@ export const firebaseService = {
         return snapshot.docs.map(docToPost);
     },
     updateGroupSettings: async (groupId, settings) => { await db.collection('groups').doc(groupId).update(settings); return true; },
-    pinPost: (groupId, postId) => db.collection('groups').doc(groupId).update({ pinnedPostId: postId }),
-    unpinPost: (groupId) => db.collection('groups').doc(groupId).update({ pinnedPostId: firebase.firestore.FieldValue.delete() }),
+    // FIX: Update pinPost to return a boolean to fix void expression errors.
+    pinPost: async (groupId, postId) => { 
+        await db.collection('groups').doc(groupId).update({ pinnedPostId: postId });
+        return true;
+    },
+    // FIX: Update unpinPost to return a boolean to fix void expression errors.
+    unpinPost: async (groupId) => { 
+        await db.collection('groups').doc(groupId).update({ pinnedPostId: firebase.firestore.FieldValue.delete() });
+        return true;
+    },
     voteOnPoll: async (userId, postId, optionIndex) => {
         const postRef = db.collection('posts').doc(postId);
         // Transaction needed
@@ -825,7 +866,11 @@ export const firebaseService = {
          // Simplified, would need permission checks
          return await firebaseService.getPostById(postId);
     },
-    inviteFriendToGroup: (groupId, friendId) => db.collection('groups').doc(groupId).update({ invitedUserIds: arrayUnion(friendId) }),
+    // FIX: Update inviteFriendToGroup to return a boolean to fix void expression errors.
+    inviteFriendToGroup: async (groupId, friendId) => {
+        await db.collection('groups').doc(groupId).update({ invitedUserIds: arrayUnion(friendId) });
+        return true;
+    },
     
     // Group Chat & Events
     getGroupChat: async (groupId) => null,

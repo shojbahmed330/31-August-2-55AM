@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { AppView, LiveAudioRoom, User } from '../types';
 import { geminiService } from '../services/geminiService';
@@ -100,7 +99,8 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
             await client.join(AGORA_APP_ID, roomId, null, uid);
 
             // Fetch room data from Firestore to check roles
-            const roomDetails = await geminiService.getAudioRoomDetails(roomId);
+            // FIX: Cast the result to LiveAudioRoom to satisfy TypeScript and access 'speakers' property.
+            const roomDetails = await geminiService.getAudioRoomDetails(roomId) as LiveAudioRoom;
             if (roomDetails) {
                  isSpeaker = roomDetails.speakers.some(s => s.id === currentUser.id);
                  if (isSpeaker) {
@@ -133,7 +133,8 @@ const LiveRoomScreen: React.FC<LiveRoomScreenProps> = ({ currentUser, roomId, on
         setIsLoading(true);
         const unsubscribe = geminiService.listenToAudioRoom(roomId, (roomDetails) => {
             if (roomDetails) {
-                setRoom(roomDetails);
+                // FIX: Cast the incoming room data to LiveAudioRoom to ensure correct type for state.
+                setRoom(roomDetails as LiveAudioRoom);
             } else {
                 onGoBack(); // Room has ended or doesn't exist
             }

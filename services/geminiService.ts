@@ -248,9 +248,8 @@ export const geminiService = {
     return firebaseService.getUserProfileById(userId);
   },
   
-  async searchUsers(query: string): Promise<User[]> {
-    return firebaseService.searchUsers(query);
-  },
+  // FIX: Added missing searchUsers function.
+  searchUsers: (query: string): Promise<User[]> => firebaseService.searchUsers(query),
 
   async updateProfile(userId: string, updates: Partial<User>): Promise<void> {
     await firebaseService.updateProfile(userId, updates);
