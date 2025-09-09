@@ -1,12 +1,13 @@
+
 import React from 'react';
 import { User } from '../types';
 
 interface ContactsPanelProps {
   friends: User[];
-  onOpenChatBox: (peer: User) => void;
+  onOpenConversation: (peer: User) => void;
 }
 
-const ContactsPanel: React.FC<ContactsPanelProps> = ({ friends, onOpenChatBox }) => {
+const ContactsPanel: React.FC<ContactsPanelProps> = ({ friends, onOpenConversation }) => {
   const onlineFriends = friends.filter(f => f.onlineStatus === 'online');
   const offlineFriends = friends.filter(f => f.onlineStatus !== 'online');
   const sortedFriends = [...onlineFriends, ...offlineFriends];
@@ -23,7 +24,7 @@ const ContactsPanel: React.FC<ContactsPanelProps> = ({ friends, onOpenChatBox })
               {sortedFriends.map(friend => (
                 <li key={friend.id}>
                   <button 
-                    onClick={() => onOpenChatBox(friend)}
+                    onClick={() => onOpenConversation(friend)}
                     className="w-full flex items-center gap-3 p-2 text-left rounded-lg hover:bg-slate-800 transition-colors"
                   >
                     <div className="relative flex-shrink-0">

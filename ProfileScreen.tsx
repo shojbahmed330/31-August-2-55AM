@@ -69,11 +69,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const fetchProfile = useCallback(async () => {
     setIsLoading(true);
-    // FIX: Corrected method call from listenToUserProfile to getUserProfile for a one-time fetch.
     const user = await firebaseService.getUserProfile(username);
     if (user) {
       setProfileUser(user);
-      // FIX: Corrected method call to fetch posts by user.
       const userPosts = await firebaseService.getPostsByUser(user.id);
       setPosts(userPosts);
       const isOwnProfile = user.id === currentUser.id;
@@ -525,3 +523,5 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     </>
   );
 };
+
+export default ProfileScreen;
