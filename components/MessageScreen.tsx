@@ -117,7 +117,7 @@ const MessageScreen: React.FC<MessageScreenProps> = ({ currentUser, recipientUse
     });
 
     return () => unsubscribe();
-  }, [chatId, currentUser.id, isLoading]);
+  }, [chatId, currentUser.id]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
