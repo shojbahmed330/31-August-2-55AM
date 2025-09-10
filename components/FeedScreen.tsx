@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Post, User, ScrollState, Campaign, AppView, Story, Comment } from '../types';
 import { PostCard } from './PostCard';
@@ -363,7 +365,7 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
 
   if (isLoading) {
     return (
-      <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-6 py-6">
+      <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-6">
           <SkeletonPostCard />
           <SkeletonPostCard />
           <SkeletonPostCard />
@@ -372,7 +374,7 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
   }
 
   return (
-    <div ref={feedContainerRef} className="w-full max-w-lg mx-auto flex flex-col items-center gap-6 py-6">
+    <div ref={feedContainerRef} className="w-full max-w-lg mx-auto flex flex-col items-center gap-6">
         <StoriesTray 
             currentUser={currentUser}
             storiesByAuthor={storiesByAuthor}
@@ -410,7 +412,6 @@ const FeedScreen: React.FC<FeedScreenProps> = ({
                     onReact={onReactToPost}
                     onViewPost={onViewPost}
                     onAuthorClick={onOpenProfile}
-                    // FIX: Pass the `onAdClick` prop from `FeedScreen`'s props, not the undefined `handleAdClick`.
                     onAdClick={onAdClick}
                     onStartComment={onStartComment}
                     onSharePost={onSharePost}
