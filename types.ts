@@ -385,9 +385,8 @@ export enum AppView {
   SETTINGS,
   CREATE_POST,
   CREATE_COMMENT,
-  MESSAGES,
   SEARCH_RESULTS,
-  FRIEND_REQUESTS, // This can be deprecated in favor of the new friends screen, but keeping for now.
+  FRIEND_REQUESTS, 
   POST_DETAILS,
   FRIENDS,
   CONVERSATIONS,

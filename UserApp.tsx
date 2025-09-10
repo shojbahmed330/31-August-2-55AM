@@ -8,10 +8,8 @@ import ReelsScreen from './components/ReelsScreen';
 import CreatePostScreen from './components/CreatePostScreen';
 import CreateReelScreen from './components/CreateReelScreen';
 import CreateCommentScreen from './components/CreateCommentScreen';
-// Fix: Changed default import to named import for ProfileScreen.
 import { ProfileScreen } from './components/ProfileScreen';
 import SettingsScreen from './components/SettingsScreen';
-import MessageScreen from './components/MessageScreen';
 import PostDetailScreen from './components/PostDetailScreen';
 import FriendsScreen from './components/FriendsScreen';
 import SearchResultsScreen from './components/SearchResultsScreen';
@@ -47,6 +45,7 @@ import ShareModal from './components/ShareModal';
 import LeadFormModal from './components/LeadFormModal';
 import ImageModal from './components/ImageModal';
 import { useSettings } from './contexts/SettingsContext';
+import ChatManager from './components/ChatManager';
 
 
 interface ViewState {
@@ -171,6 +170,10 @@ const UserApp: React.FC = () => {
   const [viewerPost, setViewerPost] = useState<Post | null>(null);
   const [isLoadingViewerPost, setIsLoadingViewerPost] = useState(false);
   const { language } = useSettings();
+
+  const [activeChats, setActiveChats] = useState<User[]>([]);
+  const [minimizedChats, setMinimizedChats] = useState<Set<string>>(new Set());
+  const [chatUnreadCounts, setChatUnreadCounts] = useState<Record<string, number>>({});
   
   const notificationPanelRef = useRef<HTMLDivElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -179,12 +182,24 @@ const UserApp: React.FC = () => {
   const currentView = viewStack[viewStack.length - 1];
   const unreadNotificationCount = notifications.filter(n => !n.read).length;
 
-  // Refined friend request count logic. Filters out requests from users who are already friends to prevent inconsistencies.
   const friendIds = useMemo(() => new Set(friends.map(f => f.id)), [friends]);
   const friendRequestCount = useMemo(() => {
       return friendRequests.filter(r => r && !friendIds.has(r.id)).length;
   }, [friendRequests, friendIds]);
 
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = firebaseService.listenToConversations(user.id, (convos) => {
+        const counts: Record<string, number> = {};
+        convos.forEach(convo => {
+            const chatId = firebaseService.getChatId(user.id, convo.peer.id);
+            counts[chatId] = convo.unreadCount;
+        });
+        setChatUnreadCounts(counts);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -224,7 +239,6 @@ const UserApp: React.FC = () => {
     let unsubscribeAcceptedRequests: () => void = () => {};
 
     const unsubscribeAuth = firebaseService.onAuthStateChanged(async (userAuth) => {
-        // Clear all previous listeners when auth state changes
         unsubscribePosts();
         unsubscribeReelsPosts();
         unsubscribeFriends();
@@ -259,7 +273,6 @@ const UserApp: React.FC = () => {
                 setIsAuthLoading(false);
             });
 
-            // Set up other real-time listeners that depend on the user's existence
             setIsLoadingFeed(true);
             setIsLoadingReels(true);
             unsubscribePosts = firebaseService.listenToFeedPosts(userAuth.id, (feedPosts) => {
@@ -280,19 +293,16 @@ const UserApp: React.FC = () => {
                 setNotifications(newNotifications);
             });
             
-            // New listener for when someone accepts OUR friend request
             unsubscribeAcceptedRequests = firebaseService.listenToAcceptedFriendRequests(userAuth.id, (acceptedRequests) => {
                 if (acceptedRequests.length > 0) {
                     console.log("Processing accepted friend requests:", acceptedRequests);
                     acceptedRequests.forEach(request => {
-                        // Finalize the friendship: add them to our friend list and delete the request
                         firebaseService.finalizeFriendship(userAuth.id, request.to);
                     });
                 }
             });
 
         } else {
-            // User logged out
             setUser(null);
             setPosts([]);
             setReelsPosts([]);
@@ -327,7 +337,6 @@ const UserApp: React.FC = () => {
     setViewStack(stack => [...stack, { view, props }]);
   }, []);
   
-  // This effect ensures that if the user logs out, they are returned to the Auth screen.
   useEffect(() => {
     if (!user && !isAuthLoading && currentView?.view !== AppView.AUTH) {
         setViewStack([{ view: AppView.AUTH }]);
@@ -340,11 +349,46 @@ const UserApp: React.FC = () => {
     }
   };
   
-  const handleStartMessage = async (recipient: User) => {
+  const handleOpenConversation = useCallback(async (peer: User) => {
     if (!user) return;
-    await firebaseService.ensureChatDocumentExists(user, recipient);
-    navigate(AppView.MESSAGES, { recipient, ttsMessage: getTtsPrompt('message_screen_loaded', language, { name: recipient.name }) });
-  };
+    await firebaseService.ensureChatDocumentExists(user, peer);
+    
+    setActiveChats(prev => {
+        const existing = prev.filter(c => c.id !== peer.id);
+        const newChats = [...existing, peer];
+        if (newChats.length > 3) {
+            return newChats.slice(newChats.length - 3);
+        }
+        return newChats;
+    });
+
+    setMinimizedChats(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(peer.id);
+        return newSet;
+    });
+  }, [user]);
+
+  const handleCloseChat = useCallback((peerId: string) => {
+      setActiveChats(prev => prev.filter(c => c.id !== peerId));
+      setMinimizedChats(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(peerId);
+          return newSet;
+      });
+  }, []);
+
+  const handleMinimizeToggle = useCallback((peerId: string) => {
+      setMinimizedChats(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(peerId)) {
+              newSet.delete(peerId);
+          } else {
+              newSet.add(peerId);
+          }
+          return newSet;
+      });
+  }, []);
 
   const handleCommand = useCallback((command: string) => {
     setVoiceState(VoiceState.PROCESSING);
@@ -386,7 +430,7 @@ const UserApp: React.FC = () => {
 
     recognition.onstart = () => {
       setVoiceState(VoiceState.LISTENING);
-      setCommandInputValue(''); // Clear previous text on new recording
+      setCommandInputValue(''); 
       setTtsMessage("Listening...");
     };
 
@@ -468,7 +512,6 @@ const UserApp: React.FC = () => {
             break;
         case 'group_join_request':
             if (notification.groupId) {
-                // This is for admins/mods. Navigate to the management screen.
                 navigate(AppView.MANAGE_GROUP, { groupId: notification.groupId, initialTab: 'requests' });
             }
             break;
@@ -507,7 +550,6 @@ const UserApp: React.FC = () => {
       const success = await geminiService.updateVoiceCoins(user.id, REWARD_AD_COIN_VALUE);
 
       if (success) {
-          // Manually update the user state to reflect the coin change immediately
           setUser(prevUser => {
               if (!prevUser) return null;
               return {
@@ -517,7 +559,6 @@ const UserApp: React.FC = () => {
           });
           setTtsMessage(getTtsPrompt('reward_claim_success', language, { coins: REWARD_AD_COIN_VALUE }));
           if (campaignId) {
-            // Optional: can track that this campaign was completed by the user
           }
       } else {
           setTtsMessage(getTtsPrompt('transaction_failed', language));
@@ -550,7 +591,7 @@ const UserApp: React.FC = () => {
         const sponsorUser = await firebaseService.getUserProfileById(post.sponsorId);
         if (sponsorUser) {
             setTtsMessage(`Opening conversation with ${sponsorUser.name}.`);
-            await handleStartMessage(sponsorUser);
+            await handleOpenConversation(sponsorUser);
         } else {
             setTtsMessage(`Could not find sponsor ${post.sponsorName}.`);
         }
@@ -596,8 +637,6 @@ const UserApp: React.FC = () => {
   
   const handlePostCreated = (newPost: Post | null) => {
     goBack();
-    // The listener will automatically update the posts state.
-    // We no longer need to manually add the post to the local state.
     setTtsMessage(getTtsPrompt('post_success', language));
   };
 
@@ -633,7 +672,6 @@ const UserApp: React.FC = () => {
         goBack();
         return;
     }
-    // Go back to the post detail screen, and pass the new comment ID to highlight it
     setViewStack(stack => [...stack.slice(0, -1), { view: AppView.POST_DETAILS, props: { postId, newlyAddedCommentId: newComment.id } }]);
     setTtsMessage(getTtsPrompt('comment_post_success', language));
   }
@@ -649,7 +687,6 @@ const UserApp: React.FC = () => {
   const handleReactToComment = async (postId: string, commentId: string, emoji: string) => {
     if (!user) return;
     await firebaseService.reactToComment(postId, commentId, user.id, emoji);
-    // Real-time listener will update the UI.
   };
 
   const handlePostComment = async (postId: string, text: string, parentId: string | null = null) => {
@@ -659,7 +696,6 @@ const UserApp: React.FC = () => {
         return;
     }
     await firebaseService.createComment(user, postId, { text, parentId });
-    // Listener will add the new comment to the UI.
   };
 
   const handleEditComment = async (postId: string, commentId: string, newText: string) => {
@@ -688,7 +724,6 @@ const UserApp: React.FC = () => {
             console.log("Web Share API was cancelled or failed.", err);
         }
     } else {
-        // Fallback to a custom share modal for desktop browsers
         setShareModalPost(post);
         setTtsMessage("Share options are now open.");
     }
@@ -702,25 +737,18 @@ const UserApp: React.FC = () => {
         viewerPostUnsubscribe.current = null;
     }
     
-    // Set the post immediately so the modal can open with the existing, potentially stale, data.
-    // This prevents passing null and causing a crash.
     setViewerPost(post);
-    setIsLoadingViewerPost(false); // We are not in a loading state initially because we have data to show.
+    setIsLoadingViewerPost(false); 
 
-    // For non-ad posts that exist in Firestore, set up a listener to get real-time updates.
     if (!post.isSponsored && !post.id.startsWith('ad_')) {
         const unsubscribe = firebaseService.listenToPost(post.id, (updatedPost) => {
             if (updatedPost) {
-                // A live update came in. Update the state to reflect it.
                 setViewerPost(updatedPost);
             } else {
-                // The post was deleted from the backend while the user was viewing it.
-                // FIX: Corrected function call from onSetTtsMessage to setTtsMessage
                 setTtsMessage("This post is no longer available.");
-                handleClosePhotoViewer(); // This will close the modal gracefully.
+                handleClosePhotoViewer(); 
             }
         });
-        // Store the unsubscribe function to be called when the modal is closed.
         viewerPostUnsubscribe.current = unsubscribe;
     }
   };
@@ -734,45 +762,37 @@ const UserApp: React.FC = () => {
         setTtsMessage(getTtsPrompt('comment_suspended', language));
         return;
     }
-    handleClosePhotoViewer(); // Close photo viewer if open before navigating
+    handleClosePhotoViewer(); 
     navigate(AppView.CREATE_COMMENT, { postId, commentToReplyTo });
   };
-
-  const handleOpenConversation = async (peer: User) => {
-    if (!user) return;
-    // Ensure the chat document exists before navigating to the message screen.
-    // This prevents permission errors when trying to listen to messages of a non-existent chat.
-    await firebaseService.ensureChatDocumentExists(user, peer);
-    navigate(AppView.MESSAGES, { recipient: peer, ttsMessage: getTtsPrompt('message_screen_loaded', language, { name: peer.name }) });
-  };
   
-    const handleBlockUser = async (userToBlock: User) => {
-        if (!user) return;
-        const success = await geminiService.blockUser(user.id, userToBlock.id);
-        if (success) {
-            setUser(u => u ? { ...u, blockedUserIds: [...u.blockedUserIds, userToBlock.id] } : null);
-            setTtsMessage(getTtsPrompt('user_blocked', language, { name: userToBlock.name }));
-            goBack();
-        }
-    };
+  const handleBlockUser = async (userToBlock: User) => {
+      if (!user) return;
+      const success = await geminiService.blockUser(user.id, userToBlock.id);
+      if (success) {
+          setUser(u => u ? { ...u, blockedUserIds: [...u.blockedUserIds, userToBlock.id] } : null);
+          setTtsMessage(getTtsPrompt('user_blocked', language, { name: userToBlock.name }));
+          goBack();
+      }
+  };
 
-    const handleUnblockUser = async (userToUnblock: User) => {
-        if (!user) return;
-        const success = await geminiService.unblockUser(user.id, userToUnblock.id);
-        if (success) {
-            setUser(u => u ? { ...u, blockedUserIds: u.blockedUserIds.filter(id => id !== userToUnblock.id) } : null);
-            setTtsMessage(getTtsPrompt('user_unblocked', language, { name: userToUnblock.name }));
-        }
-    };
+  const handleUnblockUser = async (userToUnblock: User) => {
+      if (!user) return;
+      const success = await geminiService.unblockUser(user.id, userToUnblock.id);
+      if (success) {
+          setUser(u => u ? { ...u, blockedUserIds: u.blockedUserIds.filter(id => id !== userToUnblock.id) } : null);
+          setTtsMessage(getTtsPrompt('user_unblocked', language, { name: userToUnblock.name }));
+      }
+  };
 
-    const handleDeactivateAccount = async () => {
-        if (!user) return;
-        const success = await geminiService.deactivateAccount(user.id);
-        if (success) {
-            setTtsMessage(getTtsPrompt('account_deactivated', language));
-            handleLogout();
-        }
-    };
+  const handleDeactivateAccount = async () => {
+      if (!user) return;
+      const success = await geminiService.deactivateAccount(user.id);
+      if (success) {
+          setTtsMessage(getTtsPrompt('account_deactivated', language));
+          handleLogout();
+      }
+  };
 
   const handleNavigation = (viewName: 'feed' | 'explore' | 'reels' | 'friends' | 'settings' | 'profile' | 'messages' | 'ads_center' | 'rooms' | 'groups' | 'menu') => {
     setNotificationPanelOpen(false);
@@ -851,11 +871,9 @@ const UserApp: React.FC = () => {
       case AppView.CREATE_COMMENT:
         return <CreateCommentScreen {...commonScreenProps} user={user} onCommentPosted={handleCommentPosted} {...currentView.props} />;
       case AppView.PROFILE:
-        return <ProfileScreen {...commonScreenProps} onStartMessage={handleStartMessage} onEditProfile={handleEditProfile} onBlockUser={handleBlockUser} onCurrentUserUpdate={handleCurrentUserUpdate} onPostCreated={handlePostCreated} {...currentView.props} />;
+        return <ProfileScreen {...commonScreenProps} onOpenConversation={handleOpenConversation} onEditProfile={handleEditProfile} onBlockUser={handleBlockUser} onCurrentUserUpdate={handleCurrentUserUpdate} onPostCreated={handlePostCreated} {...currentView.props} />;
       case AppView.SETTINGS:
         return <SettingsScreen {...commonScreenProps} onUpdateSettings={handleUpdateSettings} onUnblockUser={handleUnblockUser} onDeactivateAccount={handleDeactivateAccount} />;
-      case AppView.MESSAGES:
-        return <MessageScreen {...commonScreenProps} recipientUser={currentView.props.recipient} onBlockUser={handleBlockUser} />;
       case AppView.POST_DETAILS:
         return <PostDetailScreen {...commonScreenProps} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment} onPostComment={handlePostComment} onEditComment={handleEditComment} onDeleteComment={handleDeleteComment} {...currentView.props} />;
       case AppView.FRIENDS:
@@ -1006,7 +1024,17 @@ const UserApp: React.FC = () => {
       
       <ContactsPanel friends={friends} onOpenConversation={handleOpenConversation} />
       
-      {/* Modals */}
+      {user && activeChats.length > 0 && (
+          <ChatManager
+            currentUser={user}
+            activeChats={activeChats}
+            minimizedChats={minimizedChats}
+            chatUnreadCounts={chatUnreadCounts}
+            onCloseChat={handleCloseChat}
+            onMinimizeToggle={handleMinimizeToggle}
+          />
+      )}
+      
       {isShowingAd && campaignForAd && (
         <AdModal campaign={campaignForAd} onComplete={handleAdComplete} onSkip={handleAdSkip} />
       )}

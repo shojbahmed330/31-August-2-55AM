@@ -77,7 +77,8 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onNavigate, friendReq
                  <NavItem
                     iconName="message"
                     label="Messages"
-                    isActive={activeView === AppView.MESSAGES || activeView === AppView.CONVERSATIONS}
+                    // FIX: Property 'MESSAGES' does not exist on type 'typeof AppView'.
+                    isActive={activeView === AppView.CONVERSATIONS}
                     onClick={() => onNavigate('messages')}
                 />
                 <NavItem

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Post, FriendshipStatus, ScrollState, AppView, Comment } from '../types';
 import { PostCard } from './PostCard';
@@ -16,7 +17,7 @@ interface ProfileScreenProps {
   currentUser: User;
   onSetTtsMessage: (message: string) => void;
   lastCommand: string | null;
-  onStartMessage: (recipient: User) => void;
+  onOpenConversation: (recipient: User) => void;
   onEditProfile: () => void;
   onViewPost: (postId: string) => void;
   onOpenProfile: (username: string) => void;
@@ -44,7 +45,7 @@ const AboutItem: React.FC<{iconName: React.ComponentProps<typeof Icon>['name'], 
 
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ 
-    username, currentUser, onSetTtsMessage, lastCommand, onStartMessage, 
+    username, currentUser, onSetTtsMessage, lastCommand, onOpenConversation, 
     onEditProfile, onViewPost, onOpenProfile, onReactToPost, onBlockUser, scrollState,
     onCommandProcessed, onSetScrollState, onNavigate, onGoBack,
     onCurrentUserUpdate, onPostCreated,
@@ -77,7 +78,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const [dragState, setDragState] = useState({ isOverAvatar: false, isOverCover: false });
 
-  // Effect to listen for real-time profile updates
   useEffect(() => {
     setIsLoading(true);
     isInitialLoadRef.current = true;
@@ -100,7 +100,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             const common = await geminiService.getCommonFriends(currentUser.id, user.id);
             setCommonFriends(common);
         } else {
-            setCommonFriends([]); // Clear for own profile
+            setCommonFriends([]); 
         }
 
         if (isInitialLoadRef.current) {
@@ -118,7 +118,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     return () => unsubscribe();
   }, [username, currentUser.id, onSetTtsMessage, language]);
 
-  // Effect to check and update friendship status
   useEffect(() => {
     if (!profileUser || !currentUser || profileUser.id === currentUser.id) {
         setIsLoadingStatus(false);
@@ -186,7 +185,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       if (file) {
           openCropperModal(file, type);
       }
-      event.target.value = ''; // Reset input
+      event.target.value = ''; 
   };
   
   const handleSaveCrop = async (base64Url: string, caption?: string, captionStyle?: Post['captionStyle']) => {
@@ -205,7 +204,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           }
 
           if (result) {
-              // The real-time listener will handle updating the profile user state.
               onCurrentUserUpdate(result.updatedUser);
               onPostCreated(result.newPost);
               onSetTtsMessage(cropperState.type === 'avatar' ? getTtsPrompt('profile_picture_update_success', language) : getTtsPrompt('cover_photo_update_success', language));
@@ -227,7 +225,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       setCropperState({ isOpen: false, type: null, imageUrl: '', isUploading: false });
   };
   
-  // --- Drag and Drop Handlers ---
   const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
       e.preventDefault();
   };
@@ -466,7 +463,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                             ) : (
                                 <div className="flex items-center gap-2">
                                     {renderActionButtons()}
-                                     <button onClick={() => onStartMessage(profileUser)} className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors bg-sky-600 text-white hover:bg-sky-500">
+                                     <button onClick={() => onOpenConversation(profileUser)} className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors bg-sky-600 text-white hover:bg-sky-500">
                                          <Icon name="message" className="w-5 h-5"/>
                                          {t(language, 'profile.message')}
                                     </button>
