@@ -841,4 +841,201 @@ const UserApp: React.FC = () => {
       case AppView.FEED:
         return <FeedScreen {...commonScreenProps} posts={posts} isLoading={isLoadingFeed} onReactToPost={handleReactToPost} onStartCreatePost={handleStartCreatePost} onRewardedAdClick={handleRewardedAdClick} onAdClick={handleAdClick} onAdViewed={handleAdViewed} onViewPost={handleViewPost} friends={friends} setSearchResults={setSearchResults} />;
       case AppView.EXPLORE:
-        return <ExploreScreen {...commonScreen
+        return <ExploreScreen {...commonScreenProps} onReactToPost={handleReactToPost} onViewPost={handleViewPost} />;
+      case AppView.REELS:
+        return <ReelsScreen {...commonScreenProps} isLoading={isLoadingReels} posts={reelsPosts} onReactToPost={handleReactToPost} onViewPost={handleViewPost} />;
+      case AppView.CREATE_POST:
+        return <CreatePostScreen {...commonScreenProps} onPostCreated={handlePostCreated} onDeductCoinsForImage={handleDeductCoinsForImage} {...currentView.props} />;
+      case AppView.CREATE_REEL:
+        return <CreateReelScreen {...commonScreenProps} onReelCreated={handleReelCreated} />;
+      case AppView.CREATE_COMMENT:
+        return <CreateCommentScreen {...commonScreenProps} user={user} onCommentPosted={handleCommentPosted} {...currentView.props} />;
+      case AppView.PROFILE:
+        return <ProfileScreen {...commonScreenProps} onStartMessage={handleStartMessage} onEditProfile={handleEditProfile} onBlockUser={handleBlockUser} onCurrentUserUpdate={handleCurrentUserUpdate} onPostCreated={handlePostCreated} {...currentView.props} />;
+      case AppView.SETTINGS:
+        return <SettingsScreen {...commonScreenProps} onUpdateSettings={handleUpdateSettings} onUnblockUser={handleUnblockUser} onDeactivateAccount={handleDeactivateAccount} />;
+      case AppView.MESSAGES:
+        return <MessageScreen {...commonScreenProps} recipientUser={currentView.props.recipient} onBlockUser={handleBlockUser} />;
+      case AppView.POST_DETAILS:
+        return <PostDetailScreen {...commonScreenProps} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment} onPostComment={handlePostComment} onEditComment={handleEditComment} onDeleteComment={handleDeleteComment} {...currentView.props} />;
+      case AppView.FRIENDS:
+        return <FriendsScreen {...commonScreenProps} requests={friendRequests} friends={friends} onOpenConversation={handleOpenConversation} {...currentView.props} />;
+      case AppView.SEARCH_RESULTS:
+        return <SearchResultsScreen {...commonScreenProps} results={searchResults} {...currentView.props} />;
+      case AppView.CONVERSATIONS:
+        return <ConversationsScreen {...commonScreenProps} onOpenConversation={handleOpenConversation} />;
+      case AppView.ADS_CENTER:
+        return <AdsScreen {...commonScreenProps} />;
+      case AppView.ROOMS_HUB:
+        return <RoomsHubScreen {...commonScreenProps} />;
+      case AppView.ROOMS_LIST:
+        return <RoomsListScreen {...commonScreenProps} />;
+      case AppView.LIVE_ROOM:
+        return <LiveRoomScreen {...commonScreenProps} {...currentView.props} />;
+      case AppView.VIDEO_ROOMS_LIST:
+        return <VideoRoomsListScreen {...commonScreenProps} />;
+      case AppView.LIVE_VIDEO_ROOM:
+        return <LiveVideoRoomScreen {...commonScreenProps} {...currentView.props} />;
+      case AppView.GROUPS_HUB:
+        return <GroupsHubScreen {...commonScreenProps} groups={groups} onGroupCreated={handleGroupCreated} />;
+      case AppView.GROUP_PAGE:
+        return <GroupPageScreen {...commonScreenProps} onStartCreatePost={handleStartCreatePost} {...currentView.props} />;
+      case AppView.MANAGE_GROUP:
+        return <ManageGroupScreen {...commonScreenProps} {...currentView.props} />;
+      case AppView.GROUP_CHAT:
+        return <GroupChatScreen {...commonScreenProps} {...currentView.props} />;
+      case AppView.GROUP_EVENTS:
+        return <GroupEventsScreen {...commonScreenProps} {...currentView.props} />;
+      case AppView.CREATE_EVENT:
+        return <CreateEventScreen {...commonScreenProps} {...currentView.props} />;
+      case AppView.CREATE_STORY:
+        return <CreateStoryScreen {...commonScreenProps} onStoryCreated={handleStoryCreated} {...currentView.props} />;
+      case AppView.STORY_VIEWER:
+        return <StoryViewerScreen {...commonScreenProps} {...currentView.props} />;
+      case AppView.STORY_PRIVACY:
+        return <StoryPrivacyScreen {...commonScreenProps} {...currentView.props} />;
+      case AppView.GROUP_INVITE:
+        return <GroupInviteScreen {...commonScreenProps} {...currentView.props} />;
+      case AppView.MOBILE_MENU:
+        return <MobileMenuScreen currentUser={user} onNavigate={navigate} onLogout={handleLogout} friendRequestCount={friendRequestCount} />;
+      default:
+        return <FeedScreen {...commonScreenProps} posts={posts} isLoading={isLoadingFeed} onReactToPost={handleReactToPost} onStartCreatePost={handleStartCreatePost} onRewardedAdClick={handleRewardedAdClick} onAdClick={handleAdClick} onAdViewed={handleAdViewed} onViewPost={handleViewPost} friends={friends} setSearchResults={setSearchResults} />;
+    }
+  };
+  
+  if (!user) {
+    return (
+      <div className="h-screen w-screen bg-black flex items-center justify-center">
+        {renderView()}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="h-screen w-screen bg-black flex font-sans text-slate-100 overflow-hidden">
+      <Sidebar
+        currentUser={user}
+        onNavigate={handleNavigation}
+        friendRequestCount={friendRequestCount}
+        activeView={currentView.view}
+        voiceCoins={user.voiceCoins || 0}
+        voiceState={voiceState}
+        onMicClick={handleMicClick}
+      />
+      
+      <main className="flex-grow overflow-hidden relative flex flex-col">
+        {/* Header */}
+        <header className="flex-shrink-0 h-16 bg-slate-900/70 backdrop-blur-sm border-b border-lime-500/20 z-30 hidden md:flex items-center justify-between px-6">
+            <div className="flex items-center gap-4">
+                {viewStack.length > 1 && (
+                     <button onClick={goBack} className="p-2 -ml-2 rounded-full text-lime-400 hover:bg-slate-800">
+                        <Icon name="back" className="w-6 h-6" />
+                    </button>
+                )}
+                 <form onSubmit={handleHeaderSearchSubmit} className="relative w-96">
+                    <input type="search" placeholder="Search VoiceBook..." value={headerSearchQuery} onChange={(e) => setHeaderSearchQuery(e.target.value)} className="bg-slate-800 border border-slate-700 text-lime-300 rounded-full w-full py-2 pl-10 pr-4 focus:ring-2 focus:ring-lime-500 focus:outline-none"/>
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                         <svg className="w-4 h-4 text-lime-400/80" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/></svg>
+                    </div>
+                 </form>
+            </div>
+            
+             <div className="flex items-center gap-4">
+                <div className="relative" ref={notificationPanelRef}>
+                    <button onClick={handleToggleNotifications} className="p-2 rounded-full text-lime-400 hover:bg-slate-800 relative">
+                        <Icon name="bell" className="w-6 h-6"/>
+                        {unreadNotificationCount > 0 && <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-slate-900"></span>}
+                    </button>
+                    {isNotificationPanelOpen && <NotificationPanel notifications={notifications} onClose={() => setNotificationPanelOpen(false)} onNotificationClick={handleNotificationClick} />}
+                </div>
+                <div className="relative" ref={profileMenuRef}>
+                    <button onClick={() => setProfileMenuOpen(p => !p)}>
+                        <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full" />
+                    </button>
+                     {isProfileMenuOpen && (
+                        <div className="absolute top-full right-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-50 text-white overflow-hidden animate-fade-in-fast">
+                            <ul>
+                                <li><button onClick={() => { setProfileMenuOpen(false); navigate(AppView.PROFILE, { username: user.username }); }} className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50">View profile</button></li>
+                                {user.role === 'admin' && <li><a href="#/adminpannel" className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50">Admin Panel</a></li>}
+                                <li><button onClick={() => { setProfileMenuOpen(false); navigate(AppView.SETTINGS); }} className="w-full text-left p-3 flex items-center gap-3 hover:bg-slate-700/50">Settings</button></li>
+                                <li><button onClick={handleLogout} className="w-full text-left p-3 flex items-center gap-3 text-red-400 hover:bg-red-500/10">Logout</button></li>
+                            </ul>
+                        </div>
+                     )}
+                </div>
+            </div>
+        </header>
+        
+        {/* Mobile Header */}
+        <header className="flex-shrink-0 h-14 bg-slate-900 border-b border-lime-500/20 z-30 flex md:hidden items-center justify-between px-2">
+            {viewStack.length > 1 && !isMobileSearchOpen && (
+                 <button onClick={goBack} className="p-2 rounded-full text-lime-400 hover:bg-slate-800">
+                    <Icon name="back" className="w-6 h-6" />
+                </button>
+            )}
+            {!isMobileSearchOpen && <a href="#/"><Icon name="logo" className="w-8 h-8 text-lime-400 ml-2" /></a>}
+            {isMobileSearchOpen && (
+                <form onSubmit={handleHeaderSearchSubmit} className="relative flex-grow mx-2">
+                    <input autoFocus type="search" placeholder="Search..." value={headerSearchQuery} onChange={(e) => setHeaderSearchQuery(e.target.value)} className="bg-slate-800 border border-slate-700 text-lime-300 rounded-full w-full py-2 pl-4 pr-10 focus:ring-1 focus:ring-lime-500 focus:outline-none"/>
+                     <button type="submit" className="absolute inset-y-0 right-0 flex items-center pr-3">
+                         <svg className="w-4 h-4 text-lime-400/80" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/></svg>
+                    </button>
+                 </form>
+            )}
+            <div className="flex items-center gap-1">
+                <button onClick={() => setIsMobileSearchOpen(p => !p)} className="p-2 rounded-full text-lime-400 hover:bg-slate-800">
+                    {isMobileSearchOpen ? <Icon name="close" className="w-6 h-6" /> : <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>}
+                </button>
+                <div className="relative" ref={notificationPanelRef}>
+                    <button onClick={handleToggleNotifications} className="p-2 rounded-full text-lime-400 hover:bg-slate-800 relative">
+                        <Icon name="bell" className="w-6 h-6"/>
+                         {unreadNotificationCount > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>}
+                    </button>
+                     {isNotificationPanelOpen && <NotificationPanel notifications={notifications} onClose={() => setNotificationPanelOpen(false)} onNotificationClick={handleNotificationClick} />}
+                </div>
+            </div>
+        </header>
+
+        <div className="flex-grow overflow-hidden relative">
+          <div className="h-full w-full absolute inset-0 overflow-y-auto pb-32 md:pb-8">
+            {renderView()}
+          </div>
+        </div>
+
+      </main>
+      
+      <ContactsPanel friends={friends} onOpenConversation={handleOpenConversation} />
+      
+      {/* Modals */}
+      {isShowingAd && campaignForAd && (
+        <AdModal campaign={campaignForAd} onComplete={handleAdComplete} onSkip={handleAdSkip} />
+      )}
+      {viewingAd && (
+        <CampaignViewerModal post={viewingAd} onClose={() => setViewingAd(null)} />
+      )}
+       {shareModalPost && (
+         <ShareModal post={shareModalPost} onClose={() => setShareModalPost(null)} onSetTtsMessage={setTtsMessage} />
+      )}
+       {leadFormPost && (
+         <LeadFormModal post={leadFormPost} currentUser={user} onClose={() => setLeadFormPost(null)} onSubmit={handleLeadSubmit} />
+      )}
+       {viewerPost && (
+         <ImageModal post={viewerPost} currentUser={user} isLoading={isLoadingViewerPost} onClose={handleClosePhotoViewer} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment} onPostComment={handlePostComment} onEditComment={handleEditComment} onDeleteComment={handleDeleteComment} onOpenProfile={handleOpenProfile} onSharePost={handleSharePost}/>
+      )}
+
+       <MobileBottomNav 
+        onNavigate={handleNavigation}
+        friendRequestCount={friendRequestCount}
+        activeView={currentView.view}
+        voiceState={voiceState}
+        onMicClick={handleMicClick}
+        onSendCommand={handleCommand}
+        commandInputValue={commandInputValue}
+        setCommandInputValue={setCommandInputValue}
+        ttsMessage={ttsMessage}
+       />
+    </div>
+  );
+};
+
+export default UserApp;
