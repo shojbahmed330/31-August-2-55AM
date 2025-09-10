@@ -82,6 +82,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     setIsLoading(true);
     isInitialLoadRef.current = true;
     
+    // FIX: Changed to use the real-time listener 'listenToUserProfile' for dynamic updates.
     const unsubscribe = firebaseService.listenToUserProfile(username, async (user) => {
       if (user) {
         setProfileUser(user);
@@ -128,6 +129,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     const checkStatus = async () => {
         setIsLoadingStatus(true);
         try {
+            // FIX: Corrected method call to the now-implemented 'checkFriendshipStatus'
             const status = await firebaseService.checkFriendshipStatus(currentUser.id, profileUser.id);
             setFriendshipStatus(status);
         } catch (error) {

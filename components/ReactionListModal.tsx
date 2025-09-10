@@ -40,6 +40,7 @@ const ReactionListModal: React.FC<ReactionListModalProps> = ({ isOpen, onClose, 
         setIsLoading(true);
         const userIds = reactionCounts[activeTab] || [];
         if (userIds.length > 0) {
+          // FIX: Corrected firebaseService call to getUsersByIds, which now exists.
           const fetchedUsers = await firebaseService.getUsersByIds(userIds);
           setUsers(fetchedUsers);
         } else {

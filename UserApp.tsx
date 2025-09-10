@@ -170,6 +170,7 @@ const UserApp: React.FC = () => {
   const [leadFormPost, setLeadFormPost] = useState<Post | null>(null);
   const [viewerPost, setViewerPost] = useState<Post | null>(null);
   const [isLoadingViewerPost, setIsLoadingViewerPost] = useState(false);
+  const [activeChats, setActiveChats] = useState<User[]>([]);
   const { language } = useSettings();
   
   const notificationPanelRef = useRef<HTMLDivElement>(null);
@@ -235,6 +236,7 @@ const UserApp: React.FC = () => {
 
         if (userAuth) {
             let isFirstLoad = true;
+            // FIX: Corrected the listener to use 'listenToCurrentUser' which is specific for the logged-in user.
             unsubscribeUserDoc = firebaseService.listenToCurrentUser(userAuth.id, async (userProfile) => {
                 if (userProfile && !userProfile.isDeactivated && !userProfile.isBanned) {
                     setUser(userProfile);
@@ -286,7 +288,8 @@ const UserApp: React.FC = () => {
                     console.log("Processing accepted friend requests:", acceptedRequests);
                     acceptedRequests.forEach(request => {
                         // Finalize the friendship: add them to our friend list and delete the request
-                        firebaseService.finalizeFriendship(userAuth.id, request.to);
+                        // FIX: Changed to use the correct user object from the request.
+                        firebaseService.finalizeFriendship(userAuth.id, request.fromUser);
                     });
                 }
             });
@@ -315,7 +318,7 @@ const UserApp: React.FC = () => {
         unsubscribeAcceptedRequests();
         handleClosePhotoViewer();
     };
-  }, [initialDeepLink, language, handleClosePhotoViewer, handleLogout]);
+  }, [language, handleLogout]);
 
   useEffect(() => {
     setTtsMessage(getTtsPrompt('welcome', language));
@@ -340,11 +343,21 @@ const UserApp: React.FC = () => {
     }
   };
   
-  const handleStartMessage = async (recipient: User) => {
-    if (!user) return;
-    await firebaseService.ensureChatDocumentExists(user, recipient);
-    navigate(AppView.MESSAGES, { recipient, ttsMessage: getTtsPrompt('message_screen_loaded', language, { name: recipient.name }) });
-  };
+  const handleOpenChatBox = useCallback(async (recipient: User) => {
+      if (!user) return;
+      // If chat is already open, do nothing
+      if (activeChats.some(c => c.id === recipient.id)) return;
+      
+      await firebaseService.ensureChatDocumentExists(user, recipient);
+      
+      // Add the new chat user to the beginning of the array
+      setActiveChats(prev => [recipient, ...prev]);
+      setTtsMessage(getTtsPrompt('message_screen_loaded', language, { name: recipient.name }));
+  }, [user, activeChats, language]);
+
+  const handleCloseChatBox = useCallback((recipientId: string) => {
+      setActiveChats(prev => prev.filter(c => c.id !== recipientId));
+  }, []);
 
   const handleCommand = useCallback((command: string) => {
     setVoiceState(VoiceState.PROCESSING);
@@ -547,14 +560,16 @@ const UserApp: React.FC = () => {
         setTtsMessage(`Opening link for ${post.sponsorName}...`);
         window.open(post.websiteUrl, '_blank', 'noopener,noreferrer');
     } else if (post.allowDirectMessage && post.sponsorId) {
+        // FIX: Corrected method call to getUserProfileById
         const sponsorUser = await firebaseService.getUserProfileById(post.sponsorId);
         if (sponsorUser) {
             setTtsMessage(`Opening conversation with ${sponsorUser.name}.`);
-            await handleStartMessage(sponsorUser);
+            await handleOpenChatBox(sponsorUser);
         } else {
             setTtsMessage(`Could not find sponsor ${post.sponsorName}.`);
         }
     } else if (post.sponsorId) {
+        // FIX: Corrected method call to getUserProfileById
         const sponsorUser = await firebaseService.getUserProfileById(post.sponsorId);
         if (sponsorUser) {
             setTtsMessage(`Opening profile for ${sponsorUser.name}.`);
@@ -715,7 +730,6 @@ const UserApp: React.FC = () => {
                 setViewerPost(updatedPost);
             } else {
                 // The post was deleted from the backend while the user was viewing it.
-                // FIX: Corrected function call from onSetTtsMessage to setTtsMessage
                 setTtsMessage("This post is no longer available.");
                 handleClosePhotoViewer(); // This will close the modal gracefully.
             }
@@ -736,14 +750,6 @@ const UserApp: React.FC = () => {
     }
     handleClosePhotoViewer(); // Close photo viewer if open before navigating
     navigate(AppView.CREATE_COMMENT, { postId, commentToReplyTo });
-  };
-
-  const handleOpenConversation = async (peer: User) => {
-    if (!user) return;
-    // Ensure the chat document exists before navigating to the message screen.
-    // This prevents permission errors when trying to listen to messages of a non-existent chat.
-    await firebaseService.ensureChatDocumentExists(user, peer);
-    navigate(AppView.MESSAGES, { recipient: peer, ttsMessage: getTtsPrompt('message_screen_loaded', language, { name: peer.name }) });
   };
   
     const handleBlockUser = async (userToBlock: User) => {
@@ -841,4 +847,360 @@ const UserApp: React.FC = () => {
       case AppView.FEED:
         return <FeedScreen {...commonScreenProps} posts={posts} isLoading={isLoadingFeed} onReactToPost={handleReactToPost} onStartCreatePost={handleStartCreatePost} onRewardedAdClick={handleRewardedAdClick} onAdClick={handleAdClick} onAdViewed={handleAdViewed} onViewPost={handleViewPost} friends={friends} setSearchResults={setSearchResults} />;
       case AppView.EXPLORE:
-        return <ExploreScreen {...commonScreen
+        return <ExploreScreen {...commonScreenProps} onReactToPost={handleReactToPost} onViewPost={handleViewPost} />;
+      case AppView.REELS:
+        return <ReelsScreen {...commonScreenProps} posts={reelsPosts} isLoading={isLoadingReels} onReactToPost={handleReactToPost} onViewPost={handleViewPost} onStartComment={handleStartComment} onNavigate={navigate} />;
+      case AppView.PROFILE:
+        return <ProfileScreen {...commonScreenProps} username={currentView.props.username} onStartMessage={handleOpenChatBox} onEditProfile={handleEditProfile} onViewPost={handleViewPost} onReactToPost={handleReactToPost} onCurrentUserUpdate={handleCurrentUserUpdate} onPostCreated={handlePostCreated} onBlockUser={handleBlockUser} />;
+      case AppView.POST_DETAILS:
+        return <PostDetailScreen {...commonScreenProps} postId={currentView.props.postId} newlyAddedCommentId={currentView.props.newlyAddedCommentId} onReactToPost={handleReactToPost} onReactToComment={handleReactToComment} onPostComment={handlePostComment} onEditComment={handleEditComment} onDeleteComment={handleDeleteComment} />;
+      case AppView.FRIENDS:
+        return <FriendsScreen {...commonScreenProps} requests={friendRequests} friends={friends} onOpenConversation={handleOpenChatBox} />;
+      case AppView.SEARCH_RESULTS:
+        return <SearchResultsScreen {...commonScreenProps} results={searchResults} query={currentView.props.query} />;
+      case AppView.SETTINGS:
+        return <SettingsScreen {...commonScreenProps} onUpdateSettings={handleUpdateSettings} onUnblockUser={handleUnblockUser} onDeactivateAccount={handleDeactivateAccount} />;
+      case AppView.CREATE_POST:
+        return <CreatePostScreen {...commonScreenProps} user={user!} onPostCreated={handlePostCreated} onDeductCoinsForImage={handleDeductCoinsForImage} {...currentView.props} />;
+      case AppView.CREATE_REEL:
+        return <CreateReelScreen {...commonScreenProps} onReelCreated={handleReelCreated} />;
+      case AppView.CREATE_COMMENT:
+        return <CreateCommentScreen {...commonScreenProps} user={user!} postId={currentView.props.postId} onCommentPosted={handleCommentPosted} commentToReplyTo={currentView.props.commentToReplyTo} />;
+      case AppView.CONVERSATIONS:
+        return <ConversationsScreen {...commonScreenProps} onOpenConversation={handleOpenChatBox} />;
+      case AppView.ADS_CENTER:
+        return <AdsScreen {...commonScreenProps} />;
+      case AppView.ROOMS_HUB:
+        return <RoomsHubScreen {...commonScreenProps} />;
+      case AppView.ROOMS_LIST:
+        return <RoomsListScreen {...commonScreenProps} />;
+      case AppView.LIVE_ROOM:
+        return <LiveRoomScreen {...commonScreenProps} roomId={currentView.props.roomId} />;
+      case AppView.VIDEO_ROOMS_LIST:
+        return <VideoRoomsListScreen {...commonScreenProps} />;
+      case AppView.LIVE_VIDEO_ROOM:
+        return <LiveVideoRoomScreen {...commonScreenProps} roomId={currentView.props.roomId} />;
+      case AppView.GROUPS_HUB:
+        return <GroupsHubScreen {...commonScreenProps} groups={groups} onGroupCreated={handleGroupCreated} />;
+      case AppView.GROUP_PAGE:
+        return <GroupPageScreen {...commonScreenProps} groupId={currentView.props.groupId} onStartCreatePost={handleStartCreatePost} onViewPost={handleViewPost} onReactToPost={handleReactToPost}/>;
+      case AppView.MANAGE_GROUP:
+        return <ManageGroupScreen {...commonScreenProps} groupId={currentView.props.groupId} initialTab={currentView.props.initialTab} />;
+      case AppView.GROUP_CHAT:
+        return <GroupChatScreen {...commonScreenProps} groupId={currentView.props.groupId} />;
+      case AppView.GROUP_EVENTS:
+        return <GroupEventsScreen {...commonScreenProps} groupId={currentView.props.groupId} />;
+      case AppView.CREATE_EVENT:
+        return <CreateEventScreen {...commonScreenProps} groupId={currentView.props.groupId} />;
+      case AppView.CREATE_STORY:
+        return <CreateStoryScreen {...commonScreenProps} onStoryCreated={handleStoryCreated} />;
+      case AppView.STORY_VIEWER:
+        return <StoryViewerScreen {...commonScreenProps} storiesByAuthor={currentView.props.storiesByAuthor} initialUserIndex={currentView.props.initialUserIndex} />;
+      case AppView.STORY_PRIVACY:
+        return <StoryPrivacyScreen {...commonScreenProps} {...currentView.props} />;
+      case AppView.MOBILE_MENU:
+        return <MobileMenuScreen currentUser={user} onNavigate={navigate} onLogout={handleLogout} friendRequestCount={friendRequestCount} />;
+      case AppView.GROUP_INVITE:
+        return <GroupInviteScreen {...commonScreenProps} groupId={currentView.props.groupId} />;
+      default:
+        return <div className="text-lime-400 p-8">Unknown view</div>;
+    }
+  };
+
+  const fullScreenViews: AppView[] = [
+      AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM, AppView.REELS,
+      AppView.CREATE_REEL, AppView.CREATE_STORY, AppView.STORY_VIEWER, AppView.GROUP_CHAT,
+      AppView.GROUP_EVENTS, AppView.CREATE_EVENT, AppView.GROUP_INVITE
+  ];
+
+  const isFullScreenView = fullScreenViews.includes(currentView.view);
+
+  return (
+    <div className={`h-screen w-screen flex flex-col ${user ? 'bg-black text-lime-300' : 'bg-slate-100 text-gray-800'}`}>
+      <header className={`flex-shrink-0 p-2 flex justify-between items-center gap-4 z-20 ${!user ? 'bg-black' : 'bg-black/80 backdrop-blur-sm border-b border-lime-500/30'}`}>
+        {isMobileSearchOpen && user ? (
+            <div className="flex items-center w-full gap-2">
+                 <button onClick={() => setIsMobileSearchOpen(false)} aria-label="Go back" className={`p-2 rounded-full transition-colors hover:bg-slate-800`}>
+                    <Icon name="back" className="w-6 h-6 text-lime-500"/>
+                </button>
+                <form onSubmit={handleHeaderSearchSubmit} className="flex-grow relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                        <svg className="w-5 h-5 text-lime-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                            <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+                        </svg>
+                    </div>
+                    <input 
+                        type="search"
+                        autoFocus
+                        value={headerSearchQuery}
+                        onChange={(e) => setHeaderSearchQuery(e.target.value)}
+                        placeholder="Search VoiceBook..."
+                        className={`text-base rounded-full block w-full pl-11 p-2.5 transition bg-slate-900 border border-lime-500/30 text-lime-300 focus:ring-lime-500 focus:border-lime-500`}
+                    />
+                </form>
+            </div>
+        ) : (
+           <>
+             <div className="flex items-center gap-3 flex-shrink-0">
+                {viewStack.length > 1 && ![AppView.MESSAGES, AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM].includes(currentView?.view) && !user ? (
+                <button onClick={goBack} aria-label="Go back" className={`p-2 rounded-full transition-colors hover:bg-slate-800`}>
+                    <Icon name="back" className="w-6 h-6 text-lime-500"/>
+                </button>
+                ) : (
+                <button onClick={() => user ? setViewStack([{ view: AppView.FEED }]) : {}} className="flex items-center gap-2">
+                    <Icon name="logo" className={`w-10 h-10 ml-2 text-lime-400`} />
+                    <h1 className={`text-2xl font-bold text-lime-400 text-shadow-lg ${!user ? 'md:hidden' : ''}`}>VoiceBook</h1>
+                </button>
+                )}
+                 {user && (
+                    <div className="flex-grow max-w-xs hidden md:block">
+                            <form onSubmit={handleHeaderSearchSubmit} className="relative">
+                                <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                                    <svg className="w-5 h-5 text-lime-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                                        <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+                                    </svg>
+                                </div>
+                                <input 
+                                    type="search"
+                                    value={headerSearchQuery}
+                                    onChange={(e) => setHeaderSearchQuery(e.target.value)}
+                                    placeholder="Search VoiceBook..."
+                                    className={`text-base rounded-full block w-full pl-11 p-2.5 transition bg-slate-900 border border-lime-500/30 text-lime-300 focus:ring-lime-500 focus:border-lime-500`}
+                                />
+                            </form>
+                    </div>
+                )}
+            </div>
+            
+            <div className="hidden md:flex flex-grow justify-center">
+                {/* Desktop Nav Icons can go here */}
+            </div>
+            
+            {user && (
+                <div 
+                    ref={notificationPanelRef} 
+                    className={`flex items-center gap-2 sm:gap-4 flex-shrink-0 relative transition-opacity duration-200 ${
+                        [AppView.MESSAGES, AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM].includes(currentView?.view) 
+                        ? 'opacity-0 pointer-events-none' 
+                        : 'opacity-100'
+                    }`}
+                >
+                    <button onClick={() => setIsMobileSearchOpen(true)} aria-label="Search" className={`p-2.5 rounded-full transition-colors md:hidden border bg-slate-900 hover:bg-slate-800 border-lime-500/30`}>
+                        <svg className="w-5 h-5 text-lime-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                            <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+                        </svg>
+                    </button>
+                     <button
+                        onClick={handleMicClick}
+                        disabled={voiceState === VoiceState.PROCESSING}
+                        aria-label="Voice Command"
+                        className={`p-2.5 rounded-full transition-colors border bg-slate-900 hover:bg-slate-800 border-lime-500/30`}
+                    >
+                        <Icon 
+                            name="mic" 
+                            className={`w-5 h-5 transition-colors ${
+                                voiceState === VoiceState.LISTENING 
+                                ? 'text-red-500 animate-pulse' 
+                                : voiceState === VoiceState.PROCESSING
+                                ? 'text-yellow-500'
+                                : 'text-lime-500'
+                            }`}
+                        />
+                    </button>
+                    <button onClick={handleToggleNotifications} aria-label="Open notifications" className={`p-2.5 rounded-full transition-colors relative border bg-slate-900 hover:bg-slate-800 border-lime-500/30`}>
+                        <Icon name="bell" className={`w-5 h-5 text-lime-300`}/>
+                        {unreadNotificationCount > 0 && (
+                            <span className={`absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white border-2 border-black`}>{unreadNotificationCount}</span>
+                        )}
+                    </button>
+
+                    
+                    {/* --- MOBILE & DESKTOP PROFILE DROPDOWN --- */}
+                    <div className="relative" ref={profileMenuRef}>
+                        <button onClick={() => setProfileMenuOpen(p => !p)} aria-label="Open profile menu" className="flex items-center gap-2">
+                            <img src={user.avatarUrl} alt={user.name} className={`w-9 h-9 rounded-full border-2 transition border-slate-700 hover:border-lime-500`} />
+                        </button>
+                        {isProfileMenuOpen && (
+                            <div className={`absolute top-full right-0 mt-2 w-64 border rounded shadow-2xl z-50 overflow-hidden animate-fade-in-fast bg-black border-lime-500/30`}>
+                                <ul>
+                                    <li className="p-3">
+                                        <button onClick={() => { handleOpenProfile(user.username); setProfileMenuOpen(false); }} className={`w-full text-left p-3 flex items-center gap-3 rounded transition-colors hover:bg-slate-800`}>
+                                            <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full"/>
+                                            <div>
+                                                <p className={`font-bold truncate text-lime-300`}>{user.name}</p>
+                                                <p className="text-sm text-lime-500">View profile</p>
+                                            </div>
+                                        </button>
+                                    </li>
+                                     <li className={`border-t mx-3 my-1 border-lime-500/20`}></li>
+                                    {user.role === 'admin' && (
+                                        <li>
+                                            <a href="/#/adminpannel" target="_blank" rel="noopener noreferrer" className={`w-full text-left p-3 flex items-center gap-3 text-sky-400 transition-colors hover:bg-slate-800`}>
+                                                <Icon name="lock-closed" className="w-5 h-5"/> Admin Panel
+                                            </a>
+                                        </li>
+                                    )}
+                                    <li>
+                                        <button onClick={() => { navigate(AppView.SETTINGS); setProfileMenuOpen(false); }} className={`w-full text-left p-3 flex items-center gap-3 transition-colors hover:bg-slate-800 text-lime-400`}>
+                                            <Icon name="settings" className="w-5 h-5 text-lime-500"/> Settings
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button onClick={() => { handleLogout(); setProfileMenuOpen(false); }} className={`w-full text-left p-3 flex items-center gap-3 text-red-500 hover:bg-red-500/10`}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>
+                                            Logout
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+
+                    {isNotificationPanelOpen && (
+                        <NotificationPanel 
+                            notifications={notifications}
+                            onClose={() => setNotificationPanelOpen(false)}
+                            onNotificationClick={handleNotificationClick}
+                        />
+                    )}
+                </div>
+            )}
+           </>
+        )}
+      </header>
+      
+      <div className="w-full max-w-[1400px] mx-auto flex-grow flex gap-8 px-4 overflow-hidden">
+        {user && (
+            <Sidebar 
+                currentUser={user}
+                onNavigate={handleNavigation}
+                friendRequestCount={friendRequestCount}
+                activeView={currentView?.view || AppView.FEED}
+                voiceCoins={user.voiceCoins || 0}
+                voiceState={voiceState}
+                onMicClick={handleMicClick}
+            />
+        )}
+        <main className="flex-grow overflow-y-auto no-scrollbar">
+          {renderView()}
+        </main>
+
+        {user && (
+            <div className="w-72 flex-shrink-0 hidden lg:block">
+                {![AppView.LIVE_ROOM, AppView.LIVE_VIDEO_ROOM, AppView.GROUP_CHAT, AppView.GROUP_EVENTS].includes(currentView.view) && (
+                    <ContactsPanel friends={friends} onOpenChatBox={handleOpenChatBox} />
+                )}
+            </div>
+        )}
+
+      </div>
+
+
+      <footer className="flex-shrink-0 z-40">
+        {!user ? (
+            <VoiceCommandInput
+              onSendCommand={handleCommand}
+              voiceState={voiceState}
+              onMicClick={handleMicClick}
+              value={commandInputValue}
+              onValueChange={setCommandInputValue}
+              placeholder={ttsMessage}
+            />
+          ) : (
+            <div className="hidden md:block">
+               <VoiceCommandInput
+                onSendCommand={handleCommand}
+                voiceState={voiceState}
+                onMicClick={handleMicClick}
+                value={commandInputValue}
+                onValueChange={setCommandInputValue}
+                placeholder={ttsMessage}
+              />
+            </div>
+          )}
+      </footer>
+
+      {user && (
+        <MobileBottomNav 
+            onNavigate={handleNavigation}
+            friendRequestCount={friendRequestCount}
+            activeView={currentView?.view || AppView.FEED}
+            voiceState={voiceState}
+            onMicClick={handleMicClick}
+            onSendCommand={handleCommand}
+            commandInputValue={commandInputValue}
+            setCommandInputValue={setCommandInputValue}
+            ttsMessage={ttsMessage}
+        />
+      )}
+
+      {isShowingAd && user && (
+            <AdModal 
+                campaign={campaignForAd}
+                onComplete={handleAdComplete}
+                onSkip={handleAdSkip}
+            />
+      )}
+
+      {viewingAd && (
+        <CampaignViewerModal post={viewingAd} onClose={() => setViewingAd(null)} />
+      )}
+
+      {shareModalPost && (
+        <ShareModal 
+            post={shareModalPost} 
+            onClose={() => setShareModalPost(null)}
+            onSetTtsMessage={setTtsMessage}
+        />
+      )}
+
+      {leadFormPost && user && (
+        <LeadFormModal 
+            post={leadFormPost}
+            currentUser={user}
+            onClose={() => setLeadFormPost(null)}
+            onSubmit={handleLeadSubmit}
+        />
+      )}
+
+      {viewerPost && user && (
+        <ImageModal 
+            post={viewerPost}
+            isLoading={isLoadingViewerPost}
+            currentUser={user}
+            onClose={handleClosePhotoViewer} 
+            onReactToPost={handleReactToPost}
+            onReactToComment={handleReactToComment}
+            onPostComment={handlePostComment}
+            onEditComment={handleEditComment}
+            onDeleteComment={handleDeleteComment}
+            onOpenProfile={handleOpenProfile}
+            onSharePost={handleSharePost}
+        />
+      )}
+
+       {/* Chat Boxes */}
+      {user && (
+          <div className="fixed bottom-[128px] md:bottom-[76px] right-4 z-50 flex flex-row-reverse items-end gap-4 pointer-events-none">
+            {activeChats.map((chatUser, index) => (
+              <MessageScreen
+                key={chatUser.id}
+                currentUser={user}
+                recipientUser={chatUser}
+                onSetTtsMessage={setTtsMessage}
+                lastCommand={lastCommand}
+                scrollState={'none'}
+                onBlockUser={handleBlockUser}
+                onClose={() => handleCloseChatBox(chatUser.id)}
+                onCommandProcessed={handleCommandProcessed}
+                positionIndex={index}
+              />
+            ))}
+          </div>
+        )}
+    </div>
+  );
+};
+
+
+export default UserApp;

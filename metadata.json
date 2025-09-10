@@ -1,5 +1,5 @@
 {
-  "name": "Copy of VoiceBook-Starting - Message",
+  "name": "VoiceBook-Starting - Message",
   "description": "A fully voice-controlled social media application where you can sign up, log in, navigate your feed, post audio, comment, and more, all using your voice. This implementation simulates the voice experience through a text-based command interface powered by the Gemini API.",
   "requestFramePermissions": [
     "microphone",
